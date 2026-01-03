@@ -1,0 +1,10 @@
+.env
+.env.local
+.env.example
+.env.development
+.env.production
+/node_modules
+/dist
+/.vscode
+/coverage
+package-lock.json
