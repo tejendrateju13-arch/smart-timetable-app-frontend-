@@ -66,16 +66,23 @@ export default function TimetableGrid({ schedule, slots = [], role = 'Admin', us
 
                                 if (slot.isBreak) {
                                     return (
-                                        <td key={`${day}-${slot.id}`} className="p-1 md:p-2 bg-orange-50 border-r border-gray-200 last:border-r-0 text-center">
+                                        <td key={`${day}-${slot.id}`}
+                                            data-slot-id={slot.id}
+                                            data-time={`${slot.start}-${slot.end}`}
+                                            data-is-break="true"
+                                            className="p-1 md:p-2 bg-orange-50 border-r border-gray-200 last:border-r-0 text-center mobile-break-cell">
                                             <div className="vertical-text text-[8px] md:text-[10px] font-bold text-orange-400 tracking-widest uppercase">
-                                                {slot.id === 'LB' ? (window.innerWidth < 768 ? 'L' : 'LUNCH') : 'B'}
+                                                {slot.id === 'LB' ? (window.innerWidth < 768 ? 'LUNCH' : 'LUNCH') : 'BREAK'}
                                             </div>
                                         </td>
                                     );
                                 }
 
                                 if (!entry) {
-                                    return <td key={`${day}-${slot.id}`} className="p-2 md:p-4 border-r border-gray-200 last:border-r-0 bg-gray-50/30"></td>;
+                                    return <td key={`${day}-${slot.id}`}
+                                        data-slot-id={slot.id}
+                                        data-time={`${slot.start}-${slot.end}`}
+                                        className="p-2 md:p-4 border-r border-gray-200 last:border-r-0 bg-gray-50/30"></td>;
                                 }
 
                                 // Handle Lab merging (span 3 slots)
@@ -90,6 +97,8 @@ export default function TimetableGrid({ schedule, slots = [], role = 'Admin', us
                                         <td
                                             key={`${day}-${slot.id}`}
                                             colSpan={3}
+                                            data-slot-id={slot.id}
+                                            data-time={`${slot.start}-${slot.end}`}
                                             className="p-1 md:p-3 border-r border-gray-200 last:border-r-0"
                                         >
                                             <div className="bg-indigo-600 text-white p-2 md:p-3 rounded-md md:rounded-lg shadow-md h-full flex flex-col justify-center transform hover:scale-[1.02] transition cursor-help border-b-4 border-indigo-800">
@@ -104,7 +113,10 @@ export default function TimetableGrid({ schedule, slots = [], role = 'Admin', us
                                 }
 
                                 return (
-                                    <td key={`${day}-${slot.id}`} className="p-1 md:p-3 border-r border-gray-200 last:border-r-0 group/cell">
+                                    <td key={`${day}-${slot.id}`}
+                                        data-slot-id={slot.id}
+                                        data-time={`${slot.start}-${slot.end}`}
+                                        className="p-1 md:p-3 border-r border-gray-200 last:border-r-0 group/cell">
                                         <div className="bg-white border border-blue-100 p-1 md:p-2.5 rounded-md md:rounded-lg shadow-sm h-full hover:shadow-md hover:border-blue-400 transition group-hover/cell:bg-blue-50/50 flex flex-col justify-center">
                                             <div className="font-bold text-gray-800 text-[10px] md:text-[11px] mb-0.5 leading-tight" title={entry.subjectName}>
                                                 {entry.subjectName}
@@ -128,6 +140,95 @@ export default function TimetableGrid({ schedule, slots = [], role = 'Admin', us
                     text-orientation: upright;
                     display: inline-block;
                     margin: 0 auto;
+                }
+                
+                @media (max-width: 768px) {
+                    table, thead, tbody, th, td, tr { 
+                        display: block; 
+                    }
+                    
+                    thead {
+                        display: none;
+                    }
+                    
+                    tr {
+                        margin-bottom: 1.5rem;
+                        background: white;
+                        border-radius: 1rem;
+                        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+                        border: 1px solid #e5e7eb;
+                        overflow: hidden;
+                    }
+                    
+                    td:first-child {
+                        background-color: #2563eb;
+                        color: white !important;
+                        font-weight: 900;
+                        text-align: center;
+                        padding: 1rem;
+                        font-size: 1.25rem;
+                        text-transform: uppercase;
+                        letter-spacing: 0.05em;
+                        border-bottom: 1px solid #e5e7eb;
+                    }
+
+                    td:first-child span {
+                        display: inline !important;
+                    }
+                    
+                    td:not(:first-child) {
+                        border-bottom: 1px solid #f3f4f6;
+                        padding: 0.75rem 1rem;
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 1rem;
+                        min-height: 4rem; /* Force height even if empty */
+                    }
+                    
+                    td:not(:first-child):last-child {
+                        border-bottom: 0;
+                    }
+
+                    /* Slot ID / Time Label */
+                    td:not(:first-child)::before {
+                        content: attr(data-slot-id);
+                        font-weight: 900;
+                        color: #9ca3af;
+                        font-size: 0.75rem;
+                        width: 2.5rem;
+                        flex-shrink: 0;
+                        padding-top: 0.25rem;
+                    }
+                    
+                    /* Break styling */
+                    .mobile-break-cell {
+                        background-color: #fff7ed !important;
+                        padding: 0.5rem 1rem !important;
+                        min-height: auto !important;
+                        justify-content: center;
+                    }
+                    
+                    .mobile-break-cell .vertical-text {
+                        writing-mode: horizontal-tb !important;
+                        text-orientation: mixed !important;
+                        font-size: 0.7rem !important;
+                        letter-spacing: 0.2em;
+                        color: #ea580c !important;
+                    }
+                    
+                    .mobile-break-cell::before {
+                        display: none;
+                    }
+
+                    /* Content adjustments */
+                    td > div {
+                        width: 100%;
+                    }
+                    
+                    /* Fix Lab merge spans */
+                    td[colspan="3"] {
+                        display: flex;
+                    }
                 }
             `}} />
         </div>

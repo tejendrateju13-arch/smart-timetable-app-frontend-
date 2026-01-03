@@ -44,7 +44,7 @@ export default function AttendanceView() {
 
     const findFreeFaculty = async () => {
         try {
-            const res = await api.get('/attendance/free-faculty', {
+            const res = await api.get('/attendance/available-substitutes', {
                 params: { date: selectedDate, slotId: finderSlot, departmentId: currentDept?.id }
             });
             setFreeFaculty(res.data);
