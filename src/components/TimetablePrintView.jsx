@@ -14,10 +14,10 @@ const TimetablePrintView = ({ timetableData, metaData, rearrangements = [] }) =>
 
     useEffect(() => {
         if (metaData) {
-            if (metaData.wef) setWefDate(metaData.wef);
-            if (metaData.regulation) setRegulation(metaData.regulation);
-            if (metaData.roomNo) setRoomNumber(metaData.roomNo);
-            if (metaData.classIncharge) setClassIncharge(metaData.classIncharge);
+            setWefDate(metaData.wef || '');
+            setRegulation(metaData.regulation || 'R23');
+            setRoomNumber(metaData.roomNo || '');
+            setClassIncharge(metaData.classIncharge || '');
         }
     }, [metaData]);
 
@@ -26,46 +26,66 @@ const TimetablePrintView = ({ timetableData, metaData, rearrangements = [] }) =>
         documentTitle: `Timetable_${new Date().toISOString().slice(0, 10)}`,
         pageStyle: `
             @page {
-                size: A4 portrait;
-                margin: 5mm 10mm;
+                size: A4 landscape;
+                margin: 0;
             }
             @media print {
                 html, body {
                     height: auto !important;
-                    min-height: 0 !important;
+                    min-height: auto !important;
+                    max-height: none !important;
+                    overflow: visible !important;
                     margin: 0 !important;
                     padding: 0 !important;
-                    overflow: visible !important;
+                    background: white !important;
+                }
+
+                /* HIDE EVERYTHING ELSE */
+                body > *:not(.print-root) {
+                    display: none !important;
                 }
 
                 #root {
                     display: none !important;
                 }
 
-                .print-root {
-                    display: block !important;
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                }
-
-                /* MAIN CONTAINER */
+                /* RESET ALL SCROLL/HEIGHTS FOR PRINT CONTAINER */
                 .print-container {
-                    display: flex !important;
-                    flex-direction: column !important;
+                    display: block !important; 
+                    position: static !important;
                     width: 100% !important;
-                    height: 98vh !important;
+                    height: auto !important;
+                    min-height: auto !important;
+                    max-height: none !important;
+                    overflow: visible !important;
                     
-                    zoom: 0.70 !important; 
+                    /* KEY FIX: ZOOM TO FIT ONE PAGE */
+                    zoom: 0.55 !important;
                     
                     margin: 0 !important;
-                    padding: 0 10px !important;
-                    border: none !important;
+                    padding: 10mm !important; /* Small internal padding */
                     background: white !important;
                     color: black !important;
                     font-family: 'Times New Roman', Times, serif !important;
+                    
+                    /* No Page Breaks */
+                    page-break-inside: avoid !important;
+                    break-inside: avoid !important;
+                }
+
+                /* Override inline styles that might interfere */
+                .print-container[style] {
+                    min-width: 0 !important;
+                    width: 100% !important;
+                    height: auto !important;
+                }
+
+                /* PREVENT BREAKS GLOBALLY */
+                table, tr, td, th, tbody, thead, .header-college, .header-sub, .signature-wrapper {
+                    page-break-before: avoid !important;
+                    page-break-after: avoid !important;
+                    page-break-inside: avoid !important;
+                    break-inside: avoid !important;
                 }
 
                 .no-print, button, .shadow-lg { display: none !important; }
@@ -82,18 +102,20 @@ const TimetablePrintView = ({ timetableData, metaData, rearrangements = [] }) =>
                     width: 100% !important;
                     border-collapse: collapse !important;
                     margin-top: 5px !important;
+                    table-layout: fixed !important; /* Strict table layout */
                 }
                 th, td {
                     border: 1px solid black !important;
-                    padding: 4px !important; /* Padding 4px */
-                    font-size: 10.5pt !important; /* Font Size 10.5pt */
-                    line-height: 1.1 !important; /* Line Height 1.1 */
+                    padding: 4px !important; 
+                    font-size: 10.5pt !important;
+                    line-height: 1.1 !important;
                     font-family: 'Times New Roman', Times, serif !important;
+                    word-wrap: break-word !important;
                 }
                 
                 /* DAY Column Specific */
                 th:first-child, td:first-child {
-                    width: 80px !important; /* 80px Width */
+                    width: 80px !important;
                     font-weight: bold !important;
                     text-align: center !important;
                 }
@@ -110,8 +132,10 @@ const TimetablePrintView = ({ timetableData, metaData, rearrangements = [] }) =>
                 }
 
                 .signature-wrapper {
-                    margin-top: auto !important;
+                    margin-top: 2rem !important;
                     font-size: 11pt !important;
+                    page-break-inside: avoid !important;
+                    break-inside: avoid !important;
                 }
             }
         `
@@ -177,30 +201,26 @@ const TimetablePrintView = ({ timetableData, metaData, rearrangements = [] }) =>
                 Print / Save PDF (Corrected Format)
             </button>
 
-            <div className={`overflow-x-auto w-full bg-white ${currentUser ? 'shadow-lg border border-gray-200 rounded-lg' : ''}`}>
-                <div ref={componentRef} className="print-container bg-white text-black relative p-8 w-full max-w-[1100px] mx-auto font-serif">
+            <div className={`w-full bg-white ${currentUser ? 'shadow-lg border border-gray-200 rounded-lg' : ''} overflow-x-auto print:overflow-visible`}>
+                <div style={{ minWidth: '1100px' }} ref={componentRef} className="print-container bg-white text-black relative p-8 mx-auto font-serif print:w-full print:min-w-0">
 
                     {/* Header */}
                     <div className="text-center border-b-2 border-black pb-1 mb-1">
-                        <div className="flex flex-row items-center justify-between px-2 gap-2">
+                        <div className="flex flex-row items-center justify-center px-2 gap-4">
                             {/* Logo */}
-                            <div className="h-20 w-20 flex items-center justify-center">
+                            <div className="h-20 w-20 flex items-center justify-center shrink-0">
                                 <img src="/logo.png" alt="Logo" className="h-full w-full object-contain" />
                             </div>
 
-                            <div className="text-center flex-1">
-                                <h1 className="header-college mb-1 text-red-700 print:text-red-700 font-black tracking-widest leading-tight" style={{ fontSize: '20pt', fontWeight: '900' }}>
-                                    <span style={{ letterSpacing: '2px' }}>SREE RAMA ENGINEERING</span><br />
-                                    <span style={{ letterSpacing: '4px' }}>COLLEGE</span>
+                            <div className="text-center">
+                                <h1 className="header-college mb-1 text-red-700 print:text-red-700 font-black leading-tight" style={{ fontSize: '22pt', fontWeight: '900' }}>
+                                    SREE RAMA ENGINEERING COLLEGE
                                 </h1>
                                 <h2 className="header-sub text-red-700 print:text-red-700 mb-1 font-bold" style={{ fontSize: '14pt' }}>(AUTONOMOUS)</h2>
                                 <p className="text-[10pt] font-bold text-black leading-tight">Approved by AICTE, New Delhi - Affiliated to JNTUA, Ananthapuramu</p>
                                 <p className="text-[10pt] font-bold text-black leading-tight">Accredited by NAAC with 'A' Grade & NBA (ECE & CSE)</p>
                                 <p className="text-[10pt] font-bold text-black leading-tight">Rami Reddy Nagar, Karakambadi Road, Tirupati - 517507</p>
                             </div>
-
-                            {/* Logo Spacer */}
-                            <div className="h-20 w-20 opacity-0"></div>
                         </div>
 
                         <div className="mt-1 border-t border-black pt-1">
@@ -328,7 +348,7 @@ const TimetablePrintView = ({ timetableData, metaData, rearrangements = [] }) =>
                         </div>
 
                         {/* Signatures & Footer Text */}
-                        <div className="signature-wrapper mt-auto">
+                        <div className="signature-wrapper mt-auto break-inside-avoid">
 
                             {/* Class In-charge (Moved Here) */}
                             <div className="mb-4 pl-8 header-sub font-bold mt-6"> {/* Added mt-6 for spacing */}
