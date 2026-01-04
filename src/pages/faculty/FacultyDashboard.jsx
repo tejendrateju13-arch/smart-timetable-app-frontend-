@@ -12,8 +12,9 @@ export default function FacultyDashboard() {
     const [schedule, setSchedule] = useState(null);
     const [rearrangements, setRearrangements] = useState([]);
     const [facultyProfile, setFacultyProfile] = useState(null);
-    const [notifications, setNotifications] = useState([]);
-    const [showNotifications, setShowNotifications] = useState(false);
+    // Notifications handled by Global Layout
+    // const [notifications, setNotifications] = useState([]);
+    // const [showNotifications, setShowNotifications] = useState(false);
 
     // Rearrangement State
     const [showUrgentModal, setShowUrgentModal] = useState(false);
@@ -30,15 +31,8 @@ export default function FacultyDashboard() {
     const [leaveData, setLeaveData] = useState({ startDate: '', endDate: '', reason: '' });
     const [message, setMessage] = useState('');
 
-    const fetchNotifications = async (uid) => {
-        if (!uid) return;
-        try {
-            const res = await api.get('/attendance/notifications/my-notifications');
-            setNotifications(res.data || []);
-        } catch (error) {
-            console.error("Polling Error:", error);
-        }
-    };
+    // Notifications polled globally
+    // const fetchNotifications = async (uid) => { ... }
 
     const fetchRequests = async () => {
         if (!auth.currentUser) return;
@@ -60,7 +54,6 @@ export default function FacultyDashboard() {
         const fetchData = async () => {
             if (auth.currentUser && isMounted) {
                 await fetchDashboardData();
-                await fetchNotifications(auth.currentUser.uid);
                 await fetchRequests();
             }
         };
@@ -92,16 +85,9 @@ export default function FacultyDashboard() {
             const todayStr = (new Date(today - offset)).toISOString().slice(0, 10);
 
             // 1. Fetch Independent Data in Parallel
-            const [profileRes, historyRes, leavesRes, notifRes] = await Promise.all([
-                api.get('/auth/profile'),
-                api.get('/attendance/my-history').catch(e => ({ data: [] })),
-                api.get('/leaves/my-leaves').catch(e => ({ data: [] })),
-                api.get('/notifications').catch(e => ({ data: [] }))
-            ]);
-
             setFacultyProfile(profileRes.data);
             setLeaves(leavesRes.data || []);
-            setNotifications(notifRes.data || []);
+            // setNotifications(notifRes.data || []);
 
             const marked = (historyRes.data || []).some(entry => entry.date === todayStr);
             setAttendanceToday(marked);
@@ -308,41 +294,7 @@ export default function FacultyDashboard() {
             {/* Modals Removed */}
 
             {/* Notifications Panel - NEW */}
-            <div className={`fixed right-0 top-20 bottom-0 w-80 bg-white shadow-2xl border-l transform transition-transform duration-300 z-40 ${showNotifications ? 'translate-x-0' : 'translate-x-full'}`}>
-                <div className="p-4 bg-gray-50 border-b flex justify-between items-center">
-                    <h3 className="font-bold text-gray-800">Notifications</h3>
-                    <button onClick={() => setShowNotifications(false)} className="text-gray-500 hover:text-black">&times;</button>
-                </div>
-                <div className="p-4 overflow-y-auto h-full pb-20">
-                    {notifications.length === 0 ? <p className="text-gray-400 text-sm text-center mt-10">No new notifications</p> : (
-                        <ul className="space-y-3">
-                            {notifications.map(notif => (
-                                <li key={notif.id} className={`p-3 rounded border text-sm ${notif.read ? 'bg-white' : 'bg-blue-50 border-blue-200'}`}>
-                                    <p className="font-bold text-gray-800 mb-1">{notif.title || 'Alert'}</p>
-                                    <p className="text-gray-600">{notif.message}</p>
-                                    <span className="text-xs text-gray-400 mt-2 block">
-                                        {(() => {
-                                            const d = notif.timestamp || notif.createdAt;
-                                            const dateObj = d?.toDate ? d.toDate() : new Date(d);
-                                            return isNaN(dateObj) ? 'Just now' : dateObj.toLocaleString();
-                                        })()}
-                                    </span>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
-            </div>
-
-            {/* Toggle Button for Notifications */}
-            <button onClick={() => setShowNotifications(!showNotifications)} className="fixed right-6 bottom-6 bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 z-50 flex items-center gap-2">
-                <span>🔔</span>
-                {notifications.filter(n => !n.read).length > 0 &&
-                    <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full absolute -top-1 -right-1">
-                        {notifications.filter(n => !n.read).length}
-                    </span>
-                }
-            </button>
+            {/* Notifications removed from Dashboard (Present in Sidebar/Layout) */}
 
 
 

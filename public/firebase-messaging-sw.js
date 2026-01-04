@@ -1,28 +1,29 @@
 importScripts('https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.6.1/firebase-messaging-compat.js');
 
-// We need to initialize the app here for background handlers.
-// Since we don't have access to .env here, we might need value injection or just rely on default push display.
-// However, Firebase 9+ often handles display automatically if payload has 'notification' key.
-
+// Initialize the Firebase app in the service worker by passing in the messagingSenderId.
 const firebaseConfig = {
-    // Placeholder - The user might need to fill this or we can try to find values.
-    // Ideally, we don't put secrets here, but for public SW it's common.
+    apiKey: "AIzaSyAO_rLAvWzMZ2oPptOb2ACn8y15SiQRMDE",
+    authDomain: "time-table-creator-1.firebaseapp.com",
+    projectId: "time-table-creator-1",
+    messagingSenderId: "246348862130",
+    storageBucket: "time-table-creator-1.firebasestorage.app",
+    appId: "1:246348862130:web:0a476167ff6a4151892fab"
 };
 
-// firebase.initializeApp(firebaseConfig);
-// const messaging = firebase.messaging();
-// 
-// messaging.onBackgroundMessage((payload) => {
-//   console.log('[firebase-messaging-sw.js] Received background message ', payload);
-//   const notificationTitle = payload.notification.title;
-//   const notificationOptions = {
-//     body: payload.notification.body,
-//     icon: '/logo.png'
-//   };
-// 
-//   self.registration.showNotification(notificationTitle, notificationOptions);
-// });
+firebase.initializeApp(firebaseConfig);
+const messaging = firebase.messaging();
+
+messaging.onBackgroundMessage((payload) => {
+    console.log('[firebase-messaging-sw.js] Received background message ', payload);
+    const notificationTitle = payload.notification.title;
+    const notificationOptions = {
+        body: payload.notification.body,
+        icon: '/logo.png'
+    };
+
+    self.registration.showNotification(notificationTitle, notificationOptions);
+});
 
 // Default listener for click
 self.addEventListener('notificationclick', function (event) {
