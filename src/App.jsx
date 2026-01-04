@@ -26,6 +26,8 @@ import AttendanceView from './pages/admin/AttendanceView';
 import PerformanceConfig from './pages/admin/PerformanceConfig';
 import Notifications from './pages/admin/Notifications';
 import SystemSettings from './pages/admin/SystemSettings';
+import ResultNotFound from './pages/ResultNotFound';
+import NoInternet from './pages/NoInternet';
 
 const PrivateRoute = ({ children }) => {
     const { currentUser, loading } = useAuth();
@@ -53,6 +55,25 @@ const RoleRedirector = () => {
 import RoleRoute from './components/RoleRoute';
 
 function App() {
+    const [isOnline, setIsOnline] = React.useState(navigator.onLine);
+
+    React.useEffect(() => {
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
+
+    if (!isOnline) {
+        return <NoInternet />; // Full screen block
+    }
+
     return (
         <AuthProvider>
             <DepartmentProvider>
@@ -96,6 +117,9 @@ function App() {
                             {/* Shared/Public within Auth */}
                             <Route path="timetable" element={<Timetable />} />
                         </Route>
+
+                        {/* 404 Page (Must be outside Layout or inside depending on layout needs, placing outside for full page error) */}
+                        <Route path="*" element={<ResultNotFound />} />
                     </Routes>
                 </Router>
             </DepartmentProvider>
