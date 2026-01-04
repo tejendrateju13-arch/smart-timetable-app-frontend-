@@ -1,226 +1,373 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useReactToPrint } from 'react-to-print';
+import { useAuth } from '../context/AuthContext';
 
 const TimetablePrintView = ({ timetableData, metaData, rearrangements = [] }) => {
     const componentRef = useRef(null);
+    const { currentUser } = useAuth();
+
+    // Editable States
+    const [regulation, setRegulation] = useState('R23');
+    const [roomNumber, setRoomNumber] = useState('');
+    const [wefDate, setWefDate] = useState('');
+    const [classIncharge, setClassIncharge] = useState('');
+
+    useEffect(() => {
+        if (metaData) {
+            if (metaData.wef) setWefDate(metaData.wef);
+            if (metaData.regulation) setRegulation(metaData.regulation);
+            if (metaData.roomNo) setRoomNumber(metaData.roomNo);
+            if (metaData.classIncharge) setClassIncharge(metaData.classIncharge);
+        }
+    }, [metaData]);
 
     const handlePrint = useReactToPrint({
         content: () => componentRef.current,
         documentTitle: `Timetable_${new Date().toISOString().slice(0, 10)}`,
         pageStyle: `
             @page {
-                size: A4 landscape;
-                margin: 10mm;
+                size: A4 portrait;
+                margin: 5mm 10mm;
             }
             @media print {
-                body {
-                    -webkit-print-color-adjust: exact;
+                html, body {
+                    height: auto !important;
+                    min-height: 0 !important;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    overflow: visible !important;
                 }
-                .no-print {
-                    display: none;
+
+                #root {
+                    display: none !important;
+                }
+
+                .print-root {
+                    display: block !important;
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                }
+
+                /* MAIN CONTAINER */
+                .print-container {
+                    display: flex !important;
+                    flex-direction: column !important;
+                    width: 100% !important;
+                    height: 98vh !important;
+                    
+                    zoom: 0.70 !important; 
+                    
+                    margin: 0 !important;
+                    padding: 0 10px !important;
+                    border: none !important;
+                    background: white !important;
+                    color: black !important;
+                    font-family: 'Times New Roman', Times, serif !important;
+                }
+
+                .no-print, button, .shadow-lg { display: none !important; }
+
+                /* FORCE SERIF GLOBALLY */
+                * { font-family: 'Times New Roman', Times, serif !important; }
+
+                /* HEADER STYLES */
+                .header-college { font-size: 16pt !important; font-weight: bold !important; text-transform: uppercase !important; }
+                .header-sub { font-size: 11pt !important; font-weight: bold !important; }
+
+                /* TABLE STYLES - Content 10.5pt - 11pt */
+                table {
+                    width: 100% !important;
+                    border-collapse: collapse !important;
+                    margin-top: 5px !important;
+                }
+                th, td {
+                    border: 1px solid black !important;
+                    padding: 4px !important; /* Padding 4px */
+                    font-size: 10.5pt !important; /* Font Size 10.5pt */
+                    line-height: 1.1 !important; /* Line Height 1.1 */
+                    font-family: 'Times New Roman', Times, serif !important;
+                }
+                
+                /* DAY Column Specific */
+                th:first-child, td:first-child {
+                    width: 80px !important; /* 80px Width */
+                    font-weight: bold !important;
+                    text-align: center !important;
+                }
+
+                /* INPUTS AS TEXT */
+                input {
+                    border: none !important;
+                    background: transparent !important;
+                    width: auto !important;
+                    text-align: left !important;
+                    font-family: 'Times New Roman', Times, serif !important;
+                    font-size: 11pt !important;
+                    font-weight: bold !important;
+                }
+
+                .signature-wrapper {
+                    margin-top: auto !important;
+                    font-size: 11pt !important;
                 }
             }
         `
     });
 
+    const isFaculty = currentUser?.role === 'faculty';
+    const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'hod';
     const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
-    // Safely access cell data without crashing
+    // Timings Helper
+    const timings = [
+        "09:40 AM\n10:40 AM",
+        "10:40 AM\n11:30 AM",
+        "11:40 AM\n12:30 PM",
+        "12:30 PM\n01:20 PM",
+        "02:00 PM\n02:50 PM",
+        "02:50 PM\n03:40 PM",
+        "03:40 PM\n04:30 PM"
+    ];
+
     const getCellContent = (dayShort, slotId) => {
-        const dayMap = {
-            'MON': 'Monday',
-            'TUE': 'Tuesday',
-            'WED': 'Wednesday',
-            'THU': 'Thursday',
-            'FRI': 'Friday',
-            'SAT': 'Saturday'
-        };
+        const dayMap = { 'MON': 'Monday', 'TUE': 'Tuesday', 'WED': 'Wednesday', 'THU': 'Thursday', 'FRI': 'Friday', 'SAT': 'Saturday' };
         const fullDay = dayMap[dayShort];
-        const toDayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
 
-        // 0. Check for Dynamic Rearrangements (Today Only)
-        if (rearrangements && rearrangements.length > 0 && fullDay === toDayName) {
-            const patch = rearrangements.find(r => r.slotId.toString() === slotId.toString() || r.slotId === slotId);
-            if (patch) {
-                if (patch.type === 'cover') {
-                    // I am covering someone else
-                    return {
-                        text: `COVERING: ${patch.originalFacultyName || patch.urgentFacultyName || 'Faculty'}`,
-                        type: 'Substitution',
-                        style: 'bg-green-100 font-bold border-2 border-green-500 text-green-900'
-                    };
-                } else {
-                    // I am absent, someone else is covering
-                    return {
-                        text: `ALTERNATE (${patch.substituteName || 'Sub'})`,
-                        type: 'Substitution',
-                        style: 'bg-orange-50 text-orange-900 font-bold border border-orange-200'
-                    };
-                }
-            }
-        }
+        if (!timetableData || !timetableData[fullDay]) return { text: '---', type: 'empty' };
 
-        // 1. Check if timetableData exists
-        if (!timetableData) return { text: '---', type: 'empty' };
-
-        // 2. Check if the specific day exists in data
-        const dayData = timetableData[fullDay];
-        if (!dayData) return { text: '---', type: 'empty' };
-
-        // 3. Check if slot exists
-        const entry = dayData[slotId];
+        const entry = timetableData[fullDay][slotId];
         if (!entry) return { text: '---', type: 'empty' };
 
         let display = entry.subjectName || '---';
 
-        // Plain Subject Name only as per request
-        // if (entry.classroom) display += ` (${entry.classroom})`;
-        // else if (entry.roomNumber) display += ` (${entry.roomNumber})`;
+        // Show 2nd faculty if exists (Lab)
+        if (entry.type === 'Lab' && entry.facultyName2) {
+            // display += ` & ${entry.facultyName2}`; // Option: Add to subject line?
+            // Usually Fac names are in footer, but if user wants in cell:
+        }
 
-        // Highlight rearranged/substituted slots (Legacy / Permanent method support)
-        const style = entry.isRearranged ? 'bg-yellow-200 font-bold' : '';
+        return {
+            text: display,
+            type: entry.type,
+            facultyName: entry.facultyName,
+            facultyName2: entry.facultyName2, // Pass it out
+            room: entry.roomNumber
+        };
+    };
 
-        return { text: display, type: entry.type, style };
+    const formatYearSem = (y, s) => {
+        if (typeof y === 'string' && y.includes('Year')) return `${y} B.Tech ${s}`;
+        // eslint-disable-next-line eqeqeq
+        const yOrd = y == 1 ? 'I' : y == 2 ? 'II' : y == 3 ? 'III' : 'IV';
+        // eslint-disable-next-line eqeqeq
+        const sOrd = s == 1 ? 'I' : s == 2 ? 'II' : 'I'; // Sem is usually I or II
+        // Logic check: Sem 1->I, 2->II, 3->I, 4->II...
+        const semIsOdd = s % 2 !== 0;
+        const finalSem = semIsOdd ? 'I' : 'II';
+
+        return `${yOrd} B.Tech ${finalSem} Semester`;
     };
 
     return (
-        <div className="p-4">
-            <button onClick={handlePrint} className="mb-4 px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition-colors">
-                Print / Save PDF
+        <div className="p-4 w-full font-serif">
+            <button onClick={handlePrint} className="no-print mb-4 px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition-colors">
+                Print / Save PDF (Corrected Format)
             </button>
 
-            <div ref={componentRef} className="bg-white text-black font-serif border-2 border-black max-w-5xl mx-auto print:max-w-none print:w-full print:border-0">
-                <div className="p-1 md:p-8">
+            <div className={`overflow-x-auto w-full bg-white ${currentUser ? 'shadow-lg border border-gray-200 rounded-lg' : ''}`}>
+                <div ref={componentRef} className="print-container bg-white text-black relative p-8 w-full max-w-[1100px] mx-auto font-serif">
+
                     {/* Header */}
-                    <div className="text-center border-b-2 border-black pb-2 mb-2">
-                        <div className="flex flex-row items-center justify-center gap-2 md:gap-4">
+                    <div className="text-center border-b-2 border-black pb-1 mb-1">
+                        <div className="flex flex-row items-center justify-between px-2 gap-2">
                             {/* Logo */}
-                            <div className="h-10 w-10 md:h-24 md:w-24 flex items-center justify-center">
-                                <img src="/logo.png" alt="SRET Logo" className="h-full w-full object-contain" />
+                            <div className="h-20 w-20 flex items-center justify-center">
+                                <img src="/logo.png" alt="Logo" className="h-full w-full object-contain" />
                             </div>
-                            <div className="text-center">
-                                <h1 className="text-xs md:text-2xl font-bold uppercase text-red-700 leading-tight">Sree Rama Engineering College</h1>
-                                <h2 className="text-[8px] md:text-sm font-bold uppercase text-gray-700">(AUTONOMOUS)</h2>
-                                <p className="text-[6px] md:text-[10px] text-gray-600 hidden md:block">Approved by AICTE, New Delhi - Affiliated to JNTUA, Ananthapuramu</p>
-                                <p className="text-[6px] md:text-[10px] text-gray-600 md:hidden">Tirupati - 517507</p>
+
+                            <div className="text-center flex-1">
+                                <h1 className="header-college mb-1 text-red-700 print:text-red-700 font-black tracking-widest leading-tight" style={{ fontSize: '20pt', fontWeight: '900' }}>
+                                    <span style={{ letterSpacing: '2px' }}>SREE RAMA ENGINEERING</span><br />
+                                    <span style={{ letterSpacing: '4px' }}>COLLEGE</span>
+                                </h1>
+                                <h2 className="header-sub text-red-700 print:text-red-700 mb-1 font-bold" style={{ fontSize: '14pt' }}>(AUTONOMOUS)</h2>
+                                <p className="text-[10pt] font-bold text-black leading-tight">Approved by AICTE, New Delhi - Affiliated to JNTUA, Ananthapuramu</p>
+                                <p className="text-[10pt] font-bold text-black leading-tight">Accredited by NAAC with 'A' Grade & NBA (ECE & CSE)</p>
+                                <p className="text-[10pt] font-bold text-black leading-tight">Rami Reddy Nagar, Karakambadi Road, Tirupati - 517507</p>
                             </div>
+
+                            {/* Logo Spacer */}
+                            <div className="h-20 w-20 opacity-0"></div>
                         </div>
+
                         <div className="mt-1 border-t border-black pt-1">
-                            <h3 className="font-bold underline uppercase text-[10px] md:text-lg">Dept of AI & Data Science</h3>
-                            <h4 className="font-bold text-[8px] md:text-base">
-                                {metaData?.year ? (
-                                    `${metaData.year}${['st', 'nd', 'rd'][metaData.year - 1] || 'th'} Year B.Tech ${metaData.semester}${['st', 'nd', 'rd'][metaData.semester - 1] || 'th'} Sem (R23)`
-                                ) : 'III Year B.Tech II Semester (R23)'}
+                            <h3 className="header-college text-black tracking-wider mb-1 underline font-bold" style={{ fontSize: '15pt' }}>Department of Artificial Intelligence & Data Science</h3>
+
+                            {/* Class Details */}
+                            <h4 className="header-sub mb-1 uppercase font-bold" style={{ fontSize: '12pt' }}>
+                                {metaData?.year ? formatYearSem(metaData.year, metaData.semester) : 'III Year B.Tech II Semester'}
+                                <span className="ml-2">({regulation})</span>
                             </h4>
-                            <div className="flex justify-between items-center text-[8px] md:text-[10px] uppercase font-bold mt-1 px-1">
-                                <span>TIME TABLE 2025-26</span>
-                                <span>WEF: {metaData?.wef || '24-11-2025'}</span>
-                            </div>
-                            {metaData?.rearrangementDate && (
-                                <div className="bg-yellow-100 border-2 border-yellow-400 p-1 mt-1 text-xs font-black text-center text-yellow-800 animate-pulse">
-                                    RE-ARRANGED TIMETABLE FOR {metaData.rearrangementDate}
+                            <h5 className="header-sub mb-1 font-bold">TIME TABLE FOR THE ACADEMIC YEAR 2025-26</h5>
+
+                            {/* Info Line: Room, WEF */}
+                            <div className="flex justify-between items-center header-sub px-16 mt-2 pb-2">
+                                {/* Room No */}
+                                <div className="flex items-center gap-2">
+                                    {!isFaculty && (
+                                        <>
+                                            <span className="font-bold">Room No:</span>
+                                            <span className="font-bold border-b border-black min-w-[50px] inline-block text-center">{roomNumber || '232'}</span>
+                                        </>
+                                    )}
                                 </div>
-                            )}
+
+                                {/* WEF */}
+                                <div className="flex items-center gap-2">
+                                    <span className="font-bold">W.E.F:</span>
+                                    <span className="font-bold border-b border-black min-w-[80px] inline-block text-center">{wefDate || '04/01/2026'}</span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
 
-                    {/* Grid - FIXED WIDTH on Mobile (No Scroll) */}
-                    <div className="w-full">
-                        <table className="w-full border-collapse border border-black text-center table-fixed">
-                            <thead>
-                                <tr className="bg-gray-200 text-[8px] md:text-xs">
-                                    <th className="border border-black p-0.5 md:p-1 w-[8%]">DAY</th>
-                                    <th className="border border-black p-0.5 md:p-1">09:40<br />10:40</th>
-                                    <th className="border border-black p-0.5 md:p-1">10:40<br />11:30</th>
-                                    <th className="border border-black p-0 md:p-1 w-[4%] vertical-text text-[6px] md:text-xs">BRK</th>
-                                    <th className="border border-black p-0.5 md:p-1">11:40<br />12:30</th>
-                                    <th className="border border-black p-0.5 md:p-1">12:30<br />01:20</th>
-                                    <th className="border border-black p-0 md:p-1 w-[4%] vertical-text text-[6px] md:text-xs">LCH</th>
-                                    <th className="border border-black p-0.5 md:p-1">02:00<br />02:50</th>
-                                    <th className="border border-black p-0.5 md:p-1">02:50<br />03:40</th>
-                                    <th className="border border-black p-0.5 md:p-1">03:40<br />04:40</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {days.map((day) => (
-                                    <tr key={day} className="h-8 md:h-12 text-[7px] md:text-[10px]">
-                                        <td className="border border-black font-bold bg-gray-100 p-0.5 align-middle">{day}</td>
-                                        {['P1', 'P2'].map(slot => {
-                                            const cell = getCellContent(day, slot);
-                                            return <td key={slot} className={`border border-black p-0.5 break-words ${cell.style || ''}`}>{cell.text}</td>
-                                        })}
-
-                                        {day === 'MON' && (
-                                            <td rowSpan={6} className="border border-black bg-gray-100 p-0 align-middle">
-                                                <div className="h-full w-full flex items-center justify-center font-bold text-[6px] md:text-xs" style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}>BREAK</div>
-                                            </td>
-                                        )}
-
-                                        {['P3', 'P4'].map(slot => {
-                                            const cell = getCellContent(day, slot);
-                                            return <td key={slot} className={`border border-black p-0.5 break-words ${cell.style || ''}`}>{cell.text}</td>
-                                        })}
-
-                                        {day === 'MON' && (
-                                            <td rowSpan={6} className="border border-black bg-gray-100 p-0 align-middle">
-                                                <div className="h-full w-full flex items-center justify-center font-bold text-[6px] md:text-xs" style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}>LUNCH</div>
-                                            </td>
-                                        )}
-
-                                        {['P5', 'P6', 'P7'].map(slot => {
-                                            const cell = getCellContent(day, slot);
-                                            return <td key={slot} className={`border border-black p-0.5 break-words ${cell.style || ''}`}>{cell.text}</td>
-                                        })}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {/* Footer Subjects */}
-                    <div className="mt-2 md:mt-4">
-                        <h5 className="font-bold text-[8px] md:text-xs mb-1 underline">Subjects & Faculty:</h5>
-                        <div className="overflow-hidden"> {/* Ensure no scroll here either if user wants fixed */}
-                            <table className="w-full border-collapse border border-black text-[7px] md:text-xs">
+                        {/* Grid */}
+                        <div className="w-full mt-2">
+                            <table className="w-full border-collapse border border-black text-center table-fixed text-[10px]">
                                 <thead>
-                                    <tr className="bg-gray-100">
-                                        <th className="border border-black p-0.5 w-6">S.No</th>
-                                        <th className="border border-black p-0.5">Subject</th>
-                                        <th className="border border-black p-0.5 w-12">Code</th>
-                                        <th className="border border-black p-0.5">Faculty</th>
+                                    <tr className="bg-gray-200 h-10">
+                                        <th className="border border-black w-10">DAY</th>
+                                        <th className="border border-black whitespace-pre-line">{timings[0]}</th>
+                                        <th className="border border-black whitespace-pre-line">{timings[1]}</th>
+                                        <th className="border border-black w-5 vertical-text text-[8px]">BRK</th>
+                                        <th className="border border-black whitespace-pre-line">{timings[2]}</th>
+                                        <th className="border border-black whitespace-pre-line">{timings[3]}</th>
+                                        <th className="border border-black w-5 vertical-text text-[8px]">LCH</th>
+                                        <th className="border border-black whitespace-pre-line">{timings[4]}</th>
+                                        <th className="border border-black whitespace-pre-line">{timings[5]}</th>
+                                        <th className="border border-black whitespace-pre-line">{timings[6]}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {days.map((day) => (
+                                        <tr key={day} style={{ height: '55px' }}> {/* Explicit Height for Print */}
+                                            <td className="border border-black font-bold">{day}</td>
+
+                                            {/* P1, P2 */}
+                                            {['P1', 'P2'].map(slot => {
+                                                const cell = getCellContent(day, slot);
+                                                return <td key={slot} className="border border-black p-1 leading-tight font-bold">
+                                                    {cell.text}
+                                                </td>
+                                            })}
+
+                                            {day === 'MON' && (
+                                                <td rowSpan={6} className="border border-black bg-gray-100 p-0 align-middle">
+                                                    <div className="flex items-center justify-center font-bold text-[8px]" style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)', height: '100%' }}>BREAK</div>
+                                                </td>
+                                            )}
+
+                                            {/* P3, P4 */}
+                                            {['P3', 'P4'].map(slot => {
+                                                const cell = getCellContent(day, slot);
+                                                return <td key={slot} className="border border-black p-1 leading-tight font-bold">
+                                                    {cell.text}
+                                                </td>
+                                            })}
+
+                                            {day === 'MON' && (
+                                                <td rowSpan={6} className="border border-black bg-gray-100 p-0 align-middle">
+                                                    <div className="flex items-center justify-center font-bold text-[8px]" style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)', height: '100%' }}>LUNCH</div>
+                                                </td>
+                                            )}
+
+                                            {/* P5, P6, P7 */}
+                                            {['P5', 'P6', 'P7'].map(slot => {
+                                                const cell = getCellContent(day, slot);
+                                                return <td key={slot} className="border border-black p-1 leading-tight font-bold">
+                                                    {cell.text}
+                                                </td>
+                                            })}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Footer List */}
+                        <div className="mt-4 text-[11pt]">
+                            <table className="w-full border-collapse border border-black text-[11pt]">
+                                <thead>
+                                    <tr className="bg-gray-100 h-8">
+                                        <th className="border border-black w-12 text-center p-1">S.No</th>
+                                        <th className="border border-black text-left pl-3 p-1">Subject Name</th>
+                                        <th className="border border-black w-32 text-center p-1">Code</th>
+                                        <th className="border border-black text-left pl-3 p-1">Name of the Faculty</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {metaData?.subjects?.length > 0 ? (
                                         metaData.subjects.map((sub, index) => (
-                                            <tr key={index}>
-                                                <td className="border border-black p-0.5 text-center">{index + 1}</td>
-                                                <td className="border border-black p-0.5 font-semibold truncate max-w-[80px] md:max-w-none">{sub.name}</td>
-                                                <td className="border border-black p-0.5 text-center">{sub.code || '-'}</td>
-                                                <td className="border border-black p-0.5 truncate max-w-[60px] md:max-w-none">{sub.facultyName || 'TBD'}</td>
+                                            <tr key={index} className="h-8">
+                                                <td className="border border-black text-center p-1">{index + 1}</td>
+                                                <td className="border border-black pl-3 font-bold p-1">{sub.name}</td>
+                                                <td className="border border-black text-center p-1">{sub.subjectCode || sub.code || '-'}</td>
+                                                <td className="border border-black pl-3 font-bold p-1">
+                                                    {sub.facultyName}
+                                                    {sub.facultyName2 ? ` & ${sub.facultyName2}` : ''}
+                                                </td>
                                             </tr>
                                         ))
                                     ) : (
-                                        <tr>
-                                            <td colSpan={4} className="border border-black p-1 text-center italic">No subjects</td>
-                                        </tr>
+                                        <tr><td colSpan={4} className="border border-black p-1 text-center">No Data</td></tr>
                                     )}
                                 </tbody>
                             </table>
                         </div>
-                    </div>
 
-                    {/* Signatures */}
-                    <div className="flex justify-between mt-8 md:mt-16 px-2 md:px-12 font-bold text-[8px] md:text-sm">
-                        <div className="text-center">
-                            <p>TT In-charge</p>
+                        {/* Signatures & Footer Text */}
+                        <div className="signature-wrapper mt-auto">
+
+                            {/* Class In-charge (Moved Here) */}
+                            <div className="mb-4 pl-8 header-sub font-bold mt-6"> {/* Added mt-6 for spacing */}
+                                <span>Class In-charge: </span>
+                                <span className="underline decoration-1 underline-offset-4 inline-block min-w-[200px]">
+                                    {classIncharge && classIncharge.trim() !== '' ? classIncharge : '________________________'}
+                                </span>
+                            </div>
+
+                            <div className="flex justify-between items-end font-bold text-sm mt-8 px-8 mb-4 header-sub">
+                                <div className="text-center">
+                                    <div className="h-10"></div>
+                                    <p>CO-ORDINATOR</p>
+                                </div>
+                                <div className="text-center">
+                                    <div className="h-10"></div>
+                                    <p>HOD</p>
+                                </div>
+                                <div className="text-center">
+                                    <div className="h-10"></div>
+                                    <p>Principal</p>
+                                </div>
+                            </div>
+
+                            {/* Copy To Block */}
+                            <div className="text-left font-bold mt-4 mb-4 pl-8" style={{ fontSize: '11pt' }}>
+                                <p>Copy to</p>
+                                <ul className="list-none pl-0">
+                                    <li>The Principal's Office</li>
+                                    <li>The Examination Cell</li>
+                                </ul>
+                            </div>
+
+                            {/* Department Footer */}
+                            <div className="text-center font-bold pt-2 mb-1" style={{ fontSize: '8pt' }}>
+                                DEPT. OF ARTIFICAL INTELLIGENCE & DATA SCIENCE - SREE RAMA ENGINEERING COLLEGE
+                            </div>
                         </div>
-                        <div className="text-center">
-                            <p>HOD</p>
-                        </div>
-                        <div className="text-center">
-                            <p>Principal</p>
-                        </div>
+
                     </div>
                 </div>
             </div>

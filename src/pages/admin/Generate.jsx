@@ -18,6 +18,11 @@ export default function Generate() {
     const [semester, setSemester] = useState('1');
     const [section, setSection] = useState('A');
 
+    // New Metadata State
+    const [regulation, setRegulation] = useState('R23');
+    const [roomNumber, setRoomNumber] = useState('');
+    const [classIncharge, setClassIncharge] = useState('');
+
     // Auto-update semester when year changes to stay within valid range
     useEffect(() => {
         const minSem = parseInt(year) * 2 - 1;
@@ -133,7 +138,12 @@ export default function Generate() {
                 year: parseInt(year),
                 semester: parseInt(semester),
                 departmentId: currentDept.id,
-                subjects: subjectsToSave
+                subjects: subjectsToSave,
+                // NEW METADATA
+                regulation,
+                roomNumber,
+                classIncharge,
+                wef: new Date().toLocaleDateString('en-GB') // Default WEF to Today DD/MM/YYYY
             });
             setMessage('Timetable published successfully!');
         } catch (err) {
@@ -152,9 +162,10 @@ export default function Generate() {
         const actualSemOrdinal = semester === '1' ? '1st' : semester === '2' ? '2nd' : semester === '3' ? '3rd' : semester + 'th';
 
         return {
-            roomNo: 'Various',
-            classIncharge: 'Admin/HOD',
-            wef: new Date().toLocaleDateString(),
+            roomNo: roomNumber,
+            regulation: regulation,
+            classIncharge: classIncharge,
+            wef: new Date().toLocaleDateString('en-GB'),
             section,
             year: `${yearOrdinal} Year`,
             semester: `${actualSemOrdinal} Semester`,
@@ -179,13 +190,13 @@ export default function Generate() {
             {/* CONTROLS CARD */}
             <div className="bg-white p-6 rounded-lg shadow-md mb-8 border-t-4 border-purple-500">
                 {/* 1. ACADEMIC DETAILS */}
-                <div className="flex flex-wrap gap-6 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-1">Academic Year</label>
                         <select
                             value={year}
                             onChange={(e) => setYear(e.target.value)}
-                            className="w-32 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 outline-none"
+                            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 outline-none"
                         >
                             {[1, 2, 3, 4].map(y => <option key={y} value={y}>Year {y}</option>)}
                         </select>
@@ -195,7 +206,7 @@ export default function Generate() {
                         <select
                             value={semester}
                             onChange={(e) => setSemester(e.target.value)}
-                            className="w-32 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 outline-none"
+                            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 outline-none"
                         >
                             {[1, 2].map(s => {
                                 const actualSem = (parseInt(year) - 1) * 2 + s;
@@ -208,11 +219,46 @@ export default function Generate() {
                         <select
                             value={section}
                             onChange={(e) => setSection(e.target.value)}
-                            className="w-32 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 outline-none"
+                            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 outline-none"
                         >
                             {['A', 'B', 'C'].map(s => <option key={s} value={s}>Section {s}</option>)}
                         </select>
                     </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    {/* METADATA INPUTS */}
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Regulation (e.g., R23)</label>
+                        <input
+                            type="text"
+                            value={regulation}
+                            onChange={(e) => setRegulation(e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 outline-none"
+                            placeholder="R23"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Room Number (Classroom)</label>
+                        <input
+                            type="text"
+                            value={roomNumber}
+                            onChange={(e) => setRoomNumber(e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 outline-none"
+                            placeholder="e.g. 204"
+                        />
+                    </div>
+                </div>
+
+                <div className="mb-6">
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Class In-charge</label>
+                    <input
+                        type="text"
+                        value={classIncharge}
+                        onChange={(e) => setClassIncharge(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 outline-none"
+                        placeholder="e.g. Dr. A. Smith"
+                    />
                 </div>
 
                 <div className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -225,21 +271,50 @@ export default function Generate() {
                             {subjects.length > 0 ? (
                                 <div className="grid grid-cols-1 gap-2">
                                     {subjects.map(sub => (
-                                        <label key={sub.id} className="flex items-center space-x-2 text-sm text-gray-600 hover:bg-white p-2 rounded cursor-pointer transition-colors border border-transparent hover:border-blue-100">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedSubjectIds.includes(sub.id)}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) setSelectedSubjectIds(prev => [...prev, sub.id]);
-                                                    else setSelectedSubjectIds(prev => prev.filter(id => id !== sub.id));
-                                                }}
-                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
-                                            />
-                                            <div className="flex flex-col">
-                                                <span className="font-bold text-gray-800">{sub.name}</span>
-                                                <span className="text-[10px] text-gray-400 font-mono">{sub.code} • {sub.type}</span>
-                                            </div>
-                                        </label>
+                                        <div key={sub.id} className="flex items-center justify-between p-2 rounded hover:bg-white border border-transparent hover:border-blue-100 transition-colors">
+                                            <label className="flex items-center space-x-2 text-sm text-gray-600 cursor-pointer flex-1">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedSubjectIds.includes(sub.id)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) setSelectedSubjectIds(prev => [...prev, sub.id]);
+                                                        else setSelectedSubjectIds(prev => prev.filter(id => id !== sub.id));
+                                                    }}
+                                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                                                />
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold text-gray-800">{sub.name}</span>
+                                                    <span className="text-[10px] text-gray-400 font-mono">{sub.code} • {sub.type}</span>
+                                                </div>
+                                            </label>
+
+                                            {/* Lab 2nd Faculty Selector */}
+                                            {sub.type === 'Lab' && (
+                                                <div className="ml-2 w-40">
+                                                    <select
+                                                        value={sub.facultyName2 || ''}
+                                                        onClick={(e) => e.stopPropagation()} // Prevent checkbox toggle
+                                                        onChange={async (e) => {
+                                                            const newName = e.target.value;
+                                                            // Optimistic Update
+                                                            setSubjects(prev => prev.map(s => s.id === sub.id ? { ...s, facultyName2: newName } : s));
+                                                            try {
+                                                                await api.put(`/subjects/${sub.id}`, { ...sub, facultyName2: newName });
+                                                            } catch (err) {
+                                                                console.error("Failed to update Fac 2", err);
+                                                                alert("Failed to save Faculty 2 selection.");
+                                                            }
+                                                        }}
+                                                        className="w-full text-xs p-1 border border-gray-200 rounded text-gray-600 focus:ring-1 focus:ring-blue-500 outline-none"
+                                                    >
+                                                        <option value="">-- Faculty 2 --</option>
+                                                        {facultyList.map(f => (
+                                                            <option key={f.id} value={f.name}>{f.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            )}
+                                        </div>
                                     ))}
                                 </div>
                             ) : (

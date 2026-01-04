@@ -47,57 +47,62 @@ export default function UniversalEditModal({ isOpen, onClose, item, onSave, titl
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                    {fields.map(field => (
-                        <div key={field.name}>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">{field.label}</label>
-                            {field.type === 'select' ? (
-                                <select
-                                    className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition"
-                                    value={formData[field.name] || ''}
-                                    onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
-                                    required
-                                >
-                                    <option value="">Select Option</option>
-                                    {field.options.map(opt => (
-                                        <option key={opt.value || opt} value={opt.value || opt}>{opt.label || opt}</option>
-                                    ))}
-                                </select>
-                            ) : field.type === 'checkbox-group' ? (
-                                <div className="flex flex-wrap gap-4 mt-2 p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                    {field.options.map(opt => {
-                                        const val = opt.value || opt;
-                                        const label = opt.label || opt;
-                                        const isChecked = (formData[field.name] || []).includes(val);
-                                        return (
-                                            <label key={val} className="flex items-center gap-2 cursor-pointer group">
-                                                <input
-                                                    type="checkbox"
-                                                    className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
-                                                    checked={isChecked}
-                                                    onChange={(e) => {
-                                                        const current = formData[field.name] || [];
-                                                        const next = e.target.checked
-                                                            ? [...current, val]
-                                                            : current.filter(v => v !== val);
-                                                        setFormData({ ...formData, [field.name]: next });
-                                                    }}
-                                                />
-                                                <span className="text-sm text-gray-600 group-hover:text-blue-600 transition-colors font-medium">{label}</span>
-                                            </label>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
-                                <input
-                                    type={field.type || 'text'}
-                                    className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition"
-                                    value={formData[field.name] || ''}
-                                    onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
-                                    required={field.required !== false}
-                                />
-                            )}
-                        </div>
-                    ))}
+                    {fields.map(field => {
+                        // Check condition if it exists
+                        if (field.condition && !field.condition(formData)) return null;
+
+                        return (
+                            <div key={field.name}>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">{field.label}</label>
+                                {field.type === 'select' ? (
+                                    <select
+                                        className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition"
+                                        value={formData[field.name] || ''}
+                                        onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
+                                        required={field.required !== false}
+                                    >
+                                        <option value="">Select Option</option>
+                                        {field.options.map(opt => (
+                                            <option key={opt.value || opt} value={opt.value || opt}>{opt.label || opt}</option>
+                                        ))}
+                                    </select>
+                                ) : field.type === 'checkbox-group' ? (
+                                    <div className="flex flex-wrap gap-4 mt-2 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                        {field.options.map(opt => {
+                                            const val = opt.value || opt;
+                                            const label = opt.label || opt;
+                                            const isChecked = (formData[field.name] || []).includes(val);
+                                            return (
+                                                <label key={val} className="flex items-center gap-2 cursor-pointer group">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                                                        checked={isChecked}
+                                                        onChange={(e) => {
+                                                            const current = formData[field.name] || [];
+                                                            const next = e.target.checked
+                                                                ? [...current, val]
+                                                                : current.filter(v => v !== val);
+                                                            setFormData({ ...formData, [field.name]: next });
+                                                        }}
+                                                    />
+                                                    <span className="text-sm text-gray-600 group-hover:text-blue-600 transition-colors font-medium">{label}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <input
+                                        type={field.type || 'text'}
+                                        className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition"
+                                        value={formData[field.name] || ''}
+                                        onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
+                                        required={field.required !== false}
+                                    />
+                                )}
+                            </div>
+                        );
+                    })}
 
                     <div className="flex gap-3 pt-4">
                         <button

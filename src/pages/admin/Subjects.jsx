@@ -9,7 +9,7 @@ export default function Subjects() {
     const [deptList, setDeptList] = useState([]);
     const [facultyList, setFacultyList] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [newSubject, setNewSubject] = useState({ name: '', departmentId: currentDept?.id || '', type: 'Theory', code: '', year: 1, semester: 1, facultyName: '' });
+    const [newSubject, setNewSubject] = useState({ name: '', departmentId: currentDept?.id || '', type: 'Theory', code: '', year: 1, semester: 1, facultyName: '', facultyName2: '' });
     const [editingItem, setEditingItem] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [error, setError] = useState('');
@@ -45,7 +45,7 @@ export default function Subjects() {
         try {
             const res = await api.post('/subjects', newSubject);
             setSubjects(prev => [...prev, res.data]);
-            setNewSubject({ name: '', departmentId: currentDept?.id || '', type: 'Theory', code: '', year: 1, semester: 1, facultyName: '' });
+            setNewSubject({ name: '', departmentId: currentDept?.id || '', type: 'Theory', code: '', year: 1, semester: 1, facultyName: '', facultyName2: '' });
         } catch (err) {
             console.error(err);
             alert('Failed to add subject');
@@ -117,6 +117,16 @@ export default function Subjects() {
                 { value: 'Theory', label: 'Theory' },
                 { value: 'Lab', label: 'Lab' }
             ]
+        },
+        {
+            name: 'facultyName2',
+            label: 'Faculty 2 (Labs)',
+            type: 'select',
+            options: [
+                { value: '', label: 'Unassigned' },
+                ...facultyList.map(f => ({ value: f.name, label: f.name }))
+            ],
+            condition: (item) => item.type === 'Lab'
         }
     ];
 
@@ -235,6 +245,21 @@ export default function Subjects() {
                             <option value="Lab">Lab</option>
                         </select>
                     </div>
+                    {newSubject.type === 'Lab' && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Faculty 2 (Lab Only)</label>
+                            <select
+                                className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                value={newSubject.facultyName2 || ''}
+                                onChange={e => setNewSubject({ ...newSubject, facultyName2: e.target.value })}
+                            >
+                                <option value="">Unassigned</option>
+                                {facultyList.map(f => (
+                                    <option key={f.id} value={f.name}>{f.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                     <div className="md:col-span-3 lg:col-span-4 flex justify-end">
                         <button type="submit" className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-200">
                             Add Subject
