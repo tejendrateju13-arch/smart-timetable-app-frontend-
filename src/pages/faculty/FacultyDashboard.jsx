@@ -83,6 +83,7 @@ export default function FacultyDashboard() {
             const today = new Date();
             const offset = today.getTimezoneOffset() * 60000;
             const todayStr = (new Date(today - offset)).toISOString().slice(0, 10);
+            const profileRes = await api.get('/auth/profile');
 
             // 1. Fetch Independent Data in Parallel
             setFacultyProfile(profileRes.data);
