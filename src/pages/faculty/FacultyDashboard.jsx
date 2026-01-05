@@ -83,8 +83,16 @@ export default function FacultyDashboard() {
             const today = new Date();
             const offset = today.getTimezoneOffset() * 60000;
             const todayStr = (new Date(today - offset)).toISOString().slice(0, 10);
-            const profileRes = await api.get('/auth/profile');
-
+            const [
+                profileRes,
+                leavesRes,
+                historyRes
+            ] = await Promise.all([
+                api.get('/auth/profile'),
+                api.get('/leaves/my-leaves'),
+                api.get('/attendance/my-history')
+            ]);
+            
             // 1. Fetch Independent Data in Parallel
             setFacultyProfile(profileRes.data);
             setLeaves(leavesRes.data || []);
