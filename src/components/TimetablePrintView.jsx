@@ -60,10 +60,10 @@ const TimetablePrintView = ({ timetableData, metaData, rearrangements = [] }) =>
                     overflow: visible !important;
                     
                     /* KEY FIX: ZOOM TO FIT ONE PAGE */
-                    zoom: 0.55 !important;
+                    zoom: 0.9 !important;
                     
                     margin: 0 !important;
-                    padding: 10mm !important; /* Small internal padding */
+                    padding: 5mm !important; /* Small internal padding */
                     background: white !important;
                     color: black !important;
                     font-family: 'Times New Roman', Times, serif !important;
@@ -202,7 +202,7 @@ const TimetablePrintView = ({ timetableData, metaData, rearrangements = [] }) =>
             </button>
 
             <div className={`w-full bg-white ${currentUser ? 'shadow-lg border border-gray-200 rounded-lg' : ''} overflow-x-auto print:overflow-visible`}>
-                <div style={{ minWidth: '1100px' }} ref={componentRef} className="print-container bg-white text-black relative p-8 mx-auto font-serif print:w-full print:min-w-0">
+                <div style={{ minWidth: '1100px' }} ref={componentRef} className="print-root print-container bg-white text-black relative p-8 mx-auto font-serif print:w-full print:min-w-0">
 
                     {/* Header */}
                     <div className="text-center border-b-2 border-black pb-1 mb-1">
