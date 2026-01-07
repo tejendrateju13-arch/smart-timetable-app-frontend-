@@ -14,7 +14,7 @@ export default function WorkloadAnalytics() {
     const fetchWorkload = async () => {
         setLoading(true);
         try {
-            const res = await api.get(`/analytics/workload?departmentId=${currentDept.id}`);
+            const res = await api.get(`/analytics/workload?departmentId=${currentDept._id || currentDept.id}`);
             setWorkload(res.data);
         } catch (error) {
             console.error(error);

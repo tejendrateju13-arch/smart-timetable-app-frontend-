@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth } from '../firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import api from '../services/api';
+import { connectSocket, disconnectSocket, socket } from '../services/socket';
 
 const AuthContext = createContext();
 
@@ -10,45 +10,88 @@ export const AuthProvider = ({ children }) => {
     const [currentUser, setCurrentUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    // Login Function
+    const login = async (email, password) => {
+        try {
+            const response = await api.post('/auth/login', { email, password });
+            const { token, user } = response.data;
+
+            localStorage.setItem('token', token);
+            localStorage.setItem('user', JSON.stringify(user));
+            setCurrentUser(user);
+            connectSocket(token); // Connect Socket
+            return { success: true };
+        } catch (error) {
+            console.error("Login Error:", error);
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Login failed'
+            };
+        }
+    };
+
+    // Register Function
+    const register = async (userData) => {
+        try {
+            const response = await api.post('/auth/register', userData);
+            return { success: true, message: response.data.message };
+        } catch (error) {
+            console.error("Register Error:", error);
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Registration failed'
+            };
+        }
+    };
+
+    // Logout Function
+    const logout = () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setCurrentUser(null);
+        disconnectSocket(); // Disconnect Socket
+    };
+
+    // Check Auth State on Mount
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
-            setLoading(true);
-            try {
-                if (user) {
-                    // Get the ID token to authenticate the backend request
-                    const token = await user.getIdToken();
-
-                    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/profile`, {
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    });
-
-                    if (response.ok) {
-                        const profile = await response.json();
-                        setCurrentUser({ ...user, ...profile }); // Merge Auth user with Firestore profile
-                    } else {
-                        console.error('Failed to fetch user profile');
-                        setCurrentUser(user);
+        const checkAuth = async () => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                try {
+                    // Start by checking localStorage user for instant UI
+                    const storedUser = localStorage.getItem('user');
+                    if (storedUser) {
+                        setCurrentUser(JSON.parse(storedUser));
+                        connectSocket(token); // Reconnect Socket
                     }
-                } else {
-                    setCurrentUser(null);
-                }
-            } catch (err) {
-                console.error("Error in Auth State Change:", err);
-                if (user) setCurrentUser(user);
-                else setCurrentUser(null);
-            } finally {
-                setLoading(false);
-            }
-        });
 
-        return unsubscribe;
+                    // Verify with backend and update details
+                    // Assuming /auth/profile returns the full user object
+                    const response = await api.get('/auth/profile');
+                    setCurrentUser(response.data);
+                    localStorage.setItem('user', JSON.stringify(response.data));
+
+                    if (!socket.connected) connectSocket(token);
+                } catch (error) {
+                    console.error("Auth Verification Failed:", error);
+                    // If 401, interceptor might handle it, but being safe:
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    setCurrentUser(null);
+                    disconnectSocket();
+                }
+            }
+            setLoading(false);
+        };
+        checkAuth();
     }, []);
 
     const value = {
         currentUser,
-        loading
+        loading,
+        login,
+        register,
+        logout
     };
 
     return (

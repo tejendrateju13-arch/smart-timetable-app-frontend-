@@ -8,23 +8,25 @@ export default function Faculty() {
     const [faculty, setFaculty] = useState([]);
     const [deptList, setDeptList] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [newFaculty, setNewFaculty] = useState({ name: '', departmentId: currentDept?.id || '', email: '', years: [1], sections: ['A'], maxClassesPerDay: 4 });
+    const [newFaculty, setNewFaculty] = useState({ name: '', departmentId: currentDept?._id || '', email: '', years: [1, 2, 3, 4], sections: ['A', 'B', 'C'], maxClassesPerDay: 4 });
     const [editingItem, setEditingItem] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [error, setError] = useState('');
 
     useEffect(() => {
-        if (currentDept?.id) {
-            console.log("Faculty page currentDept:", currentDept.id);
+        if (currentDept?._id) {
+            console.log("Faculty page currentDept:", currentDept._id);
             fetchFaculty();
+            // Also update newFaculty default deptId if it changes
+            setNewFaculty(prev => ({ ...prev, departmentId: currentDept._id }));
         }
-    }, [currentDept?.id]);
+    }, [currentDept?._id]);
 
     const fetchFaculty = async (silent = false) => {
         if (!silent) setLoading(true);
         try {
             const [facultyRes, deptRes] = await Promise.all([
-                api.get(`/faculty?departmentId=${currentDept.id}`),
+                api.get(`/faculty?departmentId=${currentDept._id}`),
                 api.get('/departments')
             ]);
             setFaculty(facultyRes.data);
@@ -40,13 +42,20 @@ export default function Faculty() {
     const handleAdd = async (e) => {
         e.preventDefault();
         try {
-            const res = await api.post('/faculty', newFaculty);
+            // Ensure departmentId is set from currentDept if missing in newFaculty
+            const payload = { ...newFaculty, departmentId: newFaculty.departmentId || currentDept?._id };
+            if (!payload.departmentId) {
+                alert("Department ID missing. Please refresh or select a department.");
+                return;
+            }
+
+            const res = await api.post('/faculty', payload);
             // Append locally for instant feedback
             setFaculty(prev => [...prev, res.data]);
-            setNewFaculty({ name: '', departmentId: currentDept?.id || '', email: '', years: [1], sections: ['A'], maxClassesPerDay: 4 });
+            setNewFaculty({ name: '', departmentId: currentDept?._id || '', email: '', years: [1, 2, 3, 4], sections: ['A', 'B', 'C'], maxClassesPerDay: 4 });
         } catch (err) {
             console.error(err);
-            alert('Failed to add faculty');
+            alert('Failed to add faculty: ' + (err.response?.data?.message || err.message));
         }
     };
 
@@ -58,13 +67,13 @@ export default function Faculty() {
     const handleSaveEdit = async (updatedData) => {
         // Optimistic Update
         const originalFaculty = [...faculty];
-        setFaculty(prev => prev.map(f => f.id === updatedData.id ? { ...f, ...updatedData } : f));
+        setFaculty(prev => prev.map(f => f._id === updatedData._id ? { ...f, ...updatedData } : f));
         setIsModalOpen(false);
 
         try {
-            await api.put(`/faculty/${updatedData.id}`, updatedData);
+            await api.put(`/faculty/${updatedData._id}`, updatedData);
             // Optional: fetch again to sync with server, but without setloading(true)
-            const res = await api.get(`/faculty?departmentId=${currentDept.id}`);
+            const res = await api.get(`/faculty?departmentId=${currentDept._id}`);
             setFaculty(res.data);
         } catch (err) {
             console.error(err);
@@ -94,7 +103,7 @@ export default function Faculty() {
             name: 'departmentId',
             label: 'Department',
             type: 'select',
-            options: deptList.map(d => ({ value: d.id, label: d.name }))
+            options: deptList.map(d => ({ value: d._id, label: d.name }))
         },
         { name: 'maxClassesPerDay', label: 'Max Classes / Day', type: 'number' },
         { name: 'weeklyWorkloadLimit', label: 'Weekly Load Limit', type: 'number' },
@@ -118,7 +127,7 @@ export default function Faculty() {
         <div className="p-6">
             <div className="bg-blue-600 p-4 rounded-lg shadow-sm mb-6">
                 <h1 className="text-xl font-black text-white text-center uppercase tracking-widest">
-                    ARTIFICIAL INTELLIGENCE AND DATA SCIENCE (AI&DS)
+                    {currentDept.name} ({currentDept.code || 'DEPT'})
                 </h1>
             </div>
             <h2 className="text-3xl font-bold text-gray-800 mb-6">Manage Faculty</h2>
@@ -132,7 +141,7 @@ export default function Faculty() {
                 fields={facultyFields}
             />
 
-            {/* Add Faculty Form ... same as before ... */}
+            {/* Add Faculty Form */}
             <div className="mb-8 p-6 bg-white rounded-lg shadow-md">
                 <h3 className="text-xl font-semibold mb-4 text-gray-700">Add New Faculty</h3>
                 <form onSubmit={handleAdd} className="flex flex-wrap gap-4 items-end">
@@ -201,7 +210,6 @@ export default function Faculty() {
                             ))}
                         </div>
                     </div>
-                    {/* Department selection hidden as it's locked to currentDept */}
                     <input type="hidden" value={newFaculty.departmentId} />
                     <div className="w-32">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Max Load</label>
@@ -260,7 +268,7 @@ export default function Faculty() {
                         </thead>
                         <tbody className="text-gray-700 text-sm">
                             {faculty.map((f, index) => (
-                                <tr key={f.id || index} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                                <tr key={f._id || index} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
                                     <td className="p-4 font-medium">{f.name}</td>
                                     <td className="p-4 text-xs text-gray-500">{f.email}</td>
                                     <td className="p-4">
@@ -275,7 +283,7 @@ export default function Faculty() {
                                     </td>
                                     <td className="p-4">
                                         <span className="bg-blue-100 text-blue-800 py-1 px-3 rounded-full text-xs">
-                                            {deptList.find(d => d.id === f.departmentId)?.name || 'Unknown'}
+                                            {deptList.find(d => d._id === f.departmentId)?.name || 'Unknown'}
                                         </span>
                                     </td>
                                     <td className="p-4 p-2 text-xs">
@@ -301,10 +309,10 @@ export default function Faculty() {
                                                 if (window.confirm('Delete this faculty member?')) {
                                                     const originalFaculty = [...faculty];
                                                     // Optimistic delete
-                                                    setFaculty(prev => prev.filter(item => item.id !== f.id));
+                                                    setFaculty(prev => prev.filter(item => item._id !== f._id));
 
                                                     try {
-                                                        await api.delete(`/faculty/${f.id}`);
+                                                        await api.delete(`/faculty/${f._id}`);
                                                     } catch (err) {
                                                         console.error(err);
                                                         setFaculty(originalFaculty); // Rollback
@@ -326,4 +334,3 @@ export default function Faculty() {
         </div>
     );
 }
-

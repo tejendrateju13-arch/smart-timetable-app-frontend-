@@ -10,8 +10,11 @@ export default function Departments() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [error, setError] = useState('');
 
+    const [facultyList, setFacultyList] = useState([]);
+
     useEffect(() => {
         fetchDepartments();
+        fetchFaculty();
     }, []);
 
     const fetchDepartments = async () => {
@@ -23,6 +26,15 @@ export default function Departments() {
             setError('Failed to load departments');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchFaculty = async () => {
+        try {
+            const res = await api.get('/faculty'); // Fetch all faculty
+            setFacultyList(res.data);
+        } catch (err) {
+            console.error('Error fetching faculty', err);
         }
     };
 
@@ -44,19 +56,34 @@ export default function Departments() {
     };
 
     const handleSaveEdit = async (updatedData) => {
-        await api.put(`/departments/${updatedData.id}`, updatedData);
+        await api.put(`/departments/${updatedData._id}`, updatedData);
         fetchDepartments();
     };
 
-    const deptFields = [
-        { name: 'name', label: 'Department Name', type: 'text' },
-        {
-            name: 'programType',
-            label: 'Program Type',
-            type: 'select',
-            options: ['UG', 'PG']
-        }
-    ];
+    const getDeptFields = () => {
+        const filteredFaculty = editingItem
+            ? facultyList.filter(f => f.departmentId === editingItem._id)
+            : [];
+
+        return [
+            { name: 'name', label: 'Department Name', type: 'text' },
+            {
+                name: 'programType',
+                label: 'Program Type',
+                type: 'select',
+                options: ['UG', 'PG']
+            },
+            {
+                name: 'hodId',
+                label: 'Assign HOD (Must be from this Dept)',
+                type: 'select',
+                options: [
+                    { value: '', label: 'None' },
+                    ...filteredFaculty.map(f => ({ value: f._id, label: f.name }))
+                ]
+            }
+        ];
+    };
 
     return (
         <div className="p-6">
@@ -68,7 +95,7 @@ export default function Departments() {
                 item={editingItem}
                 onSave={handleSaveEdit}
                 title="Edit Department"
-                fields={deptFields}
+                fields={getDeptFields()}
             />
 
             {/* Add Department Form */}
@@ -119,28 +146,32 @@ export default function Departments() {
                             <tr>
                                 <th className="p-4 font-semibold">Name</th>
                                 <th className="p-4 font-semibold">Program</th>
+                                <th className="p-4 font-semibold">HOD</th>
                                 <th className="p-4 font-semibold text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="text-gray-700 text-sm">
-                            {departments
-                                .filter(d =>
-                                    d.name.toLowerCase().includes('artificial') ||
-                                    d.name.toLowerCase().includes('data science') ||
-                                    d.name.toLowerCase().includes('ai&ds')
-                                )
-                                .map((dept, index) => (
-                                    <tr key={dept.id || index} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
-                                        <td className="p-4 font-medium flex items-center gap-2">
+                            {departments.map((dept, index) => {
+                                const hod = facultyList.find(f => f._id === dept.hodId);
+                                return (
+                                    <tr key={dept._id || index} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                                        <td className="p-4 font-medium">
                                             {dept.name}
-                                            <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded border border-blue-200">
-                                                AI & DS BRANCH
-                                            </span>
                                         </td>
                                         <td className="p-4">
                                             <span className={`px-2 py-1 rounded-full text-xs ${dept.programType === 'PG' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'}`}>
-                                                {dept.programType}
+                                                {dept.programType || 'UG'}
                                             </span>
+                                        </td>
+                                        <td className="p-4 font-medium text-gray-600">
+                                            {hod ? (
+                                                <span className="flex items-center gap-1 text-blue-600">
+                                                    {/* <span className="text-xs">👑</span>  */}
+                                                    {hod.name}
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-400 italic">Unassigned</span>
+                                            )}
                                         </td>
                                         <td className="p-4 text-right flex justify-end gap-3">
                                             <button
@@ -152,7 +183,7 @@ export default function Departments() {
                                             <button
                                                 onClick={async () => {
                                                     if (window.confirm('Delete this department?')) {
-                                                        await api.delete(`/departments/${dept.id}`);
+                                                        await api.delete(`/departments/${dept._id}`);
                                                         fetchDepartments();
                                                     }
                                                 }}
@@ -162,7 +193,8 @@ export default function Departments() {
                                             </button>
                                         </td>
                                     </tr>
-                                ))}
+                                )
+                            })}
                         </tbody>
                     </table>
                 )}

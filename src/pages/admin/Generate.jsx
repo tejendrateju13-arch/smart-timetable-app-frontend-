@@ -17,6 +17,7 @@ export default function Generate() {
     const [year, setYear] = useState('1');
     const [semester, setSemester] = useState('1');
     const [section, setSection] = useState('A');
+    const [manualAssignments, setManualAssignments] = useState({}); // { subjectId: facultyName }
 
     // New Metadata State
     const [regulation, setRegulation] = useState('R23');
@@ -51,7 +52,7 @@ export default function Generate() {
     useEffect(() => {
         if (subjects.length > 0 && facultyList.length > 0) {
             // Get selected subject objects
-            const selectedSubjects = subjects.filter(s => selectedSubjectIds.includes(s.id));
+            const selectedSubjects = subjects.filter(s => selectedSubjectIds.includes(s._id));
 
             // Get unique faculty names from selected subjects
             const relevantFacultyNames = [...new Set(selectedSubjects.map(s => s.facultyName))];
@@ -59,11 +60,8 @@ export default function Generate() {
             // Find IDs of these faculty
             const relevantFacultyIds = facultyList
                 .filter(f => relevantFacultyNames.includes(f.name))
-                .map(f => f.id);
+                .map(f => f._id); // USING _id
 
-            // Update availableIds (avoiding loop if possible, but React batches updates)
-            // We only set if the length or content is substantially different to avoid jitter, 
-            // but simple set is fine for this scale.
             setAvailableIds(relevantFacultyIds);
         }
     }, [selectedSubjectIds, subjects, facultyList]);
@@ -73,13 +71,14 @@ export default function Generate() {
             setLoading(true);
             setMessage('');
             // Fetch Subjects
-            const subRes = await api.get(`/subjects?departmentId=${currentDept.id}&year=${year}&semester=${semester}`);
+            // Using _id for department
+            const subRes = await api.get(`/subjects?departmentId=${currentDept._id}&year=${year}&semester=${semester}`);
             const fetchedSubjects = subRes.data || [];
             setSubjects(fetchedSubjects);
-            setSelectedSubjectIds(fetchedSubjects.map(s => s.id)); // Default: Select All
+            setSelectedSubjectIds(fetchedSubjects.map(s => s._id)); // Default: Select All using _id
 
             // Fetch Faculty
-            const facRes = await api.get(`/faculty?departmentId=${currentDept.id}&year=${year}`);
+            const facRes = await api.get(`/faculty?departmentId=${currentDept._id}`);
             setFacultyList(facRes.data || []);
 
             // Initial Auto-Select will be handled by the useEffect above once states update
@@ -99,11 +98,12 @@ export default function Generate() {
         setCandidates([]);
         try {
             const res = await api.post('/generator/generate', {
-                departmentId: currentDept.id,
+                departmentId: currentDept._id, // USING _id
                 year: parseInt(year),
                 semester: parseInt(semester),
                 section,
-                availableFacultyIds: availableIds
+                availableFacultyIds: availableIds,
+                manualAssignments // Pass overrides
             });
 
             const results = res.data.candidates || [];
@@ -128,16 +128,16 @@ export default function Generate() {
         try {
             const candidateToPublish = candidates[selectedTab];
             // Sending FILTERED subjects to backend for persistence
-            const subjectsToSave = subjects.filter(s => selectedSubjectIds.includes(s.id));
+            const subjectsToSave = subjects.filter(s => selectedSubjectIds.includes(s._id)); // USING _id
 
             await api.post('/generator/publish', {
-                candidateId: candidateToPublish.id,
+                candidateId: candidateToPublish.id, // candidate ID is client-side generated or from gen algo, usually not ._id yet? Check generator logic later if needed.
                 schedule: candidateToPublish.schedule,
                 score: candidateToPublish.score,
                 section,
                 year: parseInt(year),
                 semester: parseInt(semester),
-                departmentId: currentDept.id,
+                departmentId: currentDept._id, // USING _id
                 subjects: subjectsToSave,
                 // NEW METADATA
                 regulation,
@@ -169,7 +169,7 @@ export default function Generate() {
             section,
             year: `${yearOrdinal} Year`,
             semester: `${actualSemOrdinal} Semester`,
-            subjects: subjects.filter(s => selectedSubjectIds.includes(s.id))
+            subjects: subjects.filter(s => selectedSubjectIds.includes(s._id))
         };
     };
 
@@ -180,11 +180,11 @@ export default function Generate() {
         <div className="p-6">
             <div className="bg-blue-600 p-4 rounded-lg shadow-sm mb-6">
                 <h1 className="text-xl font-black text-white text-center uppercase tracking-widest">
-                    ARTIFICIAL INTELLIGENCE AND DATA SCIENCE (AI&DS)
+                    {currentDept?.name || 'Department'} ({currentDept?.code})
                 </h1>
             </div>
             <h2 className="text-3xl font-bold mb-6 text-gray-800">
-                AI Timetable Generator - {currentDept?.name || 'Artificial Intelligence and Data Science (AI&DS)'}
+                AI Timetable Generator - {currentDept?.name}
             </h2>
 
             {/* CONTROLS CARD */}
@@ -271,14 +271,14 @@ export default function Generate() {
                             {subjects.length > 0 ? (
                                 <div className="grid grid-cols-1 gap-2">
                                     {subjects.map(sub => (
-                                        <div key={sub.id} className="flex items-center justify-between p-2 rounded hover:bg-white border border-transparent hover:border-blue-100 transition-colors">
+                                        <div key={sub._id} className="flex items-center justify-between p-2 rounded hover:bg-white border border-transparent hover:border-blue-100 transition-colors">
                                             <label className="flex items-center space-x-2 text-sm text-gray-600 cursor-pointer flex-1">
                                                 <input
                                                     type="checkbox"
-                                                    checked={selectedSubjectIds.includes(sub.id)}
+                                                    checked={selectedSubjectIds.includes(sub._id)}
                                                     onChange={(e) => {
-                                                        if (e.target.checked) setSelectedSubjectIds(prev => [...prev, sub.id]);
-                                                        else setSelectedSubjectIds(prev => prev.filter(id => id !== sub.id));
+                                                        if (e.target.checked) setSelectedSubjectIds(prev => [...prev, sub._id]);
+                                                        else setSelectedSubjectIds(prev => prev.filter(id => id !== sub._id));
                                                     }}
                                                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
                                                 />
@@ -287,6 +287,39 @@ export default function Generate() {
                                                     <span className="text-[10px] text-gray-400 font-mono">{sub.code} • {sub.type}</span>
                                                 </div>
                                             </label>
+
+                                            {/* Manual Faculty Selection Dropdown */}
+                                            <div className="ml-2 w-48">
+                                                <select
+                                                    value={manualAssignments[sub._id] || ''}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        setManualAssignments(prev => ({ ...prev, [sub._id]: val }));
+                                                    }}
+                                                    className={`w-full text-xs p-1 border rounded outline-none ${manualAssignments[sub._id] ? 'border-purple-500 bg-purple-50 text-purple-700 font-bold' : 'border-gray-200 text-gray-500'}`}
+                                                >
+                                                    <option value="">
+                                                        {sub.facultyName ? `Default: ${sub.facultyName}` : '-- Select Faculty --'}
+                                                    </option>
+
+                                                    {/* 1. Eligible Faculty Pool */}
+                                                    {sub.eligibleFaculty && sub.eligibleFaculty.length > 0 ? (
+                                                        <optgroup label="Eligible Pool">
+                                                            {sub.eligibleFaculty.map(fName => (
+                                                                <option key={fName} value={fName}>{fName}</option>
+                                                            ))}
+                                                        </optgroup>
+                                                    ) : null}
+
+                                                    {/* 2. All Faculty Fallback (or if pool matches nothing) */}
+                                                    <optgroup label="All Faculty">
+                                                        {facultyList.map(f => (
+                                                            <option key={f._id} value={f.name}>{f.name}</option>
+                                                        ))}
+                                                    </optgroup>
+                                                </select>
+                                            </div>
 
                                             {/* Lab 2nd Faculty Selector */}
                                             {sub.type === 'Lab' && (
@@ -297,9 +330,9 @@ export default function Generate() {
                                                         onChange={async (e) => {
                                                             const newName = e.target.value;
                                                             // Optimistic Update
-                                                            setSubjects(prev => prev.map(s => s.id === sub.id ? { ...s, facultyName2: newName } : s));
+                                                            setSubjects(prev => prev.map(s => s._id === sub._id ? { ...s, facultyName2: newName } : s));
                                                             try {
-                                                                await api.put(`/subjects/${sub.id}`, { ...sub, facultyName2: newName });
+                                                                await api.put(`/subjects/${sub._id}`, { ...sub, facultyName2: newName });
                                                             } catch (err) {
                                                                 console.error("Failed to update Fac 2", err);
                                                                 alert("Failed to save Faculty 2 selection.");
@@ -309,7 +342,7 @@ export default function Generate() {
                                                     >
                                                         <option value="">-- Faculty 2 --</option>
                                                         {facultyList.map(f => (
-                                                            <option key={f.id} value={f.name}>{f.name}</option>
+                                                            <option key={f._id} value={f.name}>{f.name}</option>
                                                         ))}
                                                     </select>
                                                 </div>
@@ -338,13 +371,13 @@ export default function Generate() {
                             {facultyList.length > 0 ? (
                                 <div className="grid grid-cols-1 gap-2">
                                     {facultyList.map(faculty => (
-                                        <label key={faculty.id} className="flex items-center space-x-2 text-sm text-gray-600 hover:bg-white p-2 rounded cursor-pointer transition-colors border border-transparent hover:border-purple-100 group">
+                                        <label key={faculty._id} className="flex items-center space-x-2 text-sm text-gray-600 hover:bg-white p-2 rounded cursor-pointer transition-colors border border-transparent hover:border-purple-100 group">
                                             <input
                                                 type="checkbox"
-                                                checked={availableIds.includes(faculty.id)}
+                                                checked={availableIds.includes(faculty._id)}
                                                 onChange={(e) => {
-                                                    if (e.target.checked) setAvailableIds(prev => [...prev, faculty.id]);
-                                                    else setAvailableIds(prev => prev.filter(id => id !== faculty.id));
+                                                    if (e.target.checked) setAvailableIds(prev => [...prev, faculty._id]);
+                                                    else setAvailableIds(prev => prev.filter(id => id !== faculty._id));
                                                 }}
                                                 className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 h-4 w-4 mt-0.5"
                                             />

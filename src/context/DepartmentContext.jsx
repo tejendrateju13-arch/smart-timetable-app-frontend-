@@ -36,20 +36,20 @@ export const DepartmentProvider = ({ children }) => {
                 let targetDept = null;
 
                 if (currentUser && currentUser.role === 'HOD' && currentUser.departmentId) {
-                    targetDept = allDepts.find(d => d.id === currentUser.departmentId);
+                    targetDept = allDepts.find(d => d._id === currentUser.departmentId);
                 } else if (currentUser && currentUser.role === 'Faculty' && currentUser.departmentId) {
-                    targetDept = allDepts.find(d => d.id === currentUser.departmentId);
+                    targetDept = allDepts.find(d => d._id === currentUser.departmentId);
                 } else {
                     // Default for Admin or others: Try to find AI&DS or use localStorage
                     const savedId = localStorage.getItem('selectedDeptId');
-                    targetDept = allDepts.find(d => d.id === savedId) ||
+                    targetDept = allDepts.find(d => d._id === savedId) ||
                         allDepts.find(d => d.name.includes('AI&DS') || d.name.toLowerCase().includes('artificial intelligence')) ||
                         allDepts[0];
                 }
 
                 if (targetDept) {
                     setCurrentDept(targetDept);
-                    localStorage.setItem('selectedDeptId', targetDept.id);
+                    localStorage.setItem('selectedDeptId', targetDept._id);
                 }
             }
         } catch (error) {
@@ -62,7 +62,7 @@ export const DepartmentProvider = ({ children }) => {
 
     const switchDepartment = (deptId) => {
         // Only allow switching if explicitly needed, but for now it's locked to AI&DS
-        const dept = departments.find(d => d.id === deptId);
+        const dept = departments.find(d => d._id === deptId);
         if (dept) {
             setCurrentDept(dept);
             localStorage.setItem('selectedDeptId', deptId);

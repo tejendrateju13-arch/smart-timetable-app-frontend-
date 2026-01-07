@@ -4,30 +4,31 @@ import UniversalEditModal from '../../components/admin/UniversalEditModal';
 import { useDepartment } from '../../context/DepartmentContext';
 
 export default function Subjects() {
-    const { currentDept, loading: deptLoading } = useDepartment();
+    const { currentDept, loading: deptLoading, refreshDepartments } = useDepartment();
     const [subjects, setSubjects] = useState([]);
     const [deptList, setDeptList] = useState([]);
     const [facultyList, setFacultyList] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [newSubject, setNewSubject] = useState({ name: '', departmentId: currentDept?.id || '', type: 'Theory', code: '', year: 1, semester: 1, facultyName: '', facultyName2: '' });
+    const [newSubject, setNewSubject] = useState({ name: '', departmentId: currentDept?._id || '', type: 'Theory', code: '', year: 1, semester: 1, facultyName: '', facultyName2: '', eligibleFaculty: [] });
     const [editingItem, setEditingItem] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [error, setError] = useState('');
 
     useEffect(() => {
-        if (currentDept?.id) {
-            console.log("Subjects page currentDept:", currentDept.id);
+        if (currentDept?._id) {
+            console.log("Subjects page currentDept:", currentDept._id);
             fetchInitialData();
+            setNewSubject(prev => ({ ...prev, departmentId: currentDept._id }));
         }
-    }, [currentDept?.id]);
+    }, [currentDept?._id]);
 
     const fetchInitialData = async (silent = false) => {
         if (!silent) setLoading(true);
         try {
             const [subRes, deptRes, facultyRes] = await Promise.all([
-                api.get(`/subjects?departmentId=${currentDept.id}`),
+                api.get(`/subjects?departmentId=${currentDept._id}`),
                 api.get('/departments'),
-                api.get(`/faculty?departmentId=${currentDept.id}`)
+                api.get(`/faculty?departmentId=${currentDept._id}`)
             ]);
             setSubjects(subRes.data);
             setDeptList(deptRes.data);
@@ -40,12 +41,40 @@ export default function Subjects() {
         }
     };
 
+    if (deptLoading) return (
+        <div className="flex flex-col items-center justify-center p-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+            <p className="text-gray-500 font-medium">Initializing department data...</p>
+        </div>
+    );
+
+    if (!currentDept) return (
+        <div className="flex flex-col items-center justify-center p-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+            <p className="text-xl font-bold text-gray-700 mb-2">Department Data Not Found</p>
+            <p className="text-gray-500 mb-6 text-center max-w-md">
+                We couldn't load the department details. This might be due to a network issue or missing data.
+            </p>
+            <button
+                onClick={() => refreshDepartments()}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all shadow-md active:scale-95"
+            >
+                Retry Loading
+            </button>
+        </div>
+    );
+
+
     const handleAdd = async (e) => {
         e.preventDefault();
         try {
-            const res = await api.post('/subjects', newSubject);
+            const payload = { ...newSubject, departmentId: newSubject.departmentId || currentDept?._id };
+            if (!payload.departmentId) {
+                alert("Department ID missing.");
+                return;
+            }
+            const res = await api.post('/subjects', payload);
             setSubjects(prev => [...prev, res.data]);
-            setNewSubject({ name: '', departmentId: currentDept?.id || '', type: 'Theory', code: '', year: 1, semester: 1, facultyName: '', facultyName2: '' });
+            setNewSubject({ name: '', departmentId: currentDept?._id || '', type: 'Theory', code: '', year: 1, semester: 1, facultyName: '', facultyName2: '' });
         } catch (err) {
             console.error(err);
             alert('Failed to add subject');
@@ -60,12 +89,12 @@ export default function Subjects() {
     const handleSaveEdit = async (updatedData) => {
         // Optimistic Update
         const originalSubjects = [...subjects];
-        setSubjects(prev => prev.map(s => s.id === updatedData.id ? { ...s, ...updatedData } : s));
+        setSubjects(prev => prev.map(s => s._id === updatedData._id ? { ...s, ...updatedData } : s));
         setIsModalOpen(false);
 
         try {
-            await api.put(`/subjects/${updatedData.id}`, updatedData);
-            const res = await api.get(`/subjects?departmentId=${currentDept.id}`);
+            await api.put(`/subjects/${updatedData._id}`, updatedData);
+            const res = await api.get(`/subjects?departmentId=${currentDept._id}`);
             setSubjects(res.data);
         } catch (err) {
             console.error(err);
@@ -81,7 +110,7 @@ export default function Subjects() {
             name: 'departmentId',
             label: 'Department',
             type: 'select',
-            options: deptList.map(d => ({ value: d.id, label: d.name }))
+            options: deptList.map(d => ({ value: d._id, label: d.name }))
         },
         {
             name: 'year',
@@ -127,6 +156,12 @@ export default function Subjects() {
                 ...facultyList.map(f => ({ value: f.name, label: f.name }))
             ],
             condition: (item) => item.type === 'Lab'
+        },
+        {
+            name: 'eligibleFaculty',
+            label: 'Eligible Faculty Pool (Multi-Select)',
+            type: 'multiselect',
+            options: facultyList.map(f => ({ value: f.name, label: f.name }))
         }
     ];
 
@@ -137,7 +172,7 @@ export default function Subjects() {
         <div className="p-6">
             <div className="bg-blue-600 p-4 rounded-lg shadow-sm mb-6">
                 <h1 className="text-xl font-black text-white text-center uppercase tracking-widest">
-                    ARTIFICIAL INTELLIGENCE AND DATA SCIENCE (AI&DS)
+                    {currentDept.name} ({currentDept.code || 'DEPT'})
                 </h1>
             </div>
             <div className="flex justify-between items-center mb-6">
@@ -225,14 +260,18 @@ export default function Subjects() {
                         </select>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Faculty Name</label>
-                        <input
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Faculty</label>
+                        <select
                             className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
                             value={newSubject.facultyName}
                             onChange={e => setNewSubject({ ...newSubject, facultyName: e.target.value })}
                             required
-                            placeholder="e.g. Prof. Smith"
-                        />
+                        >
+                            <option value="">Select Faculty</option>
+                            {facultyList.map(f => (
+                                <option key={f._id} value={f.name}>{f.name}</option>
+                            ))}
+                        </select>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
@@ -255,7 +294,7 @@ export default function Subjects() {
                             >
                                 <option value="">Unassigned</option>
                                 {facultyList.map(f => (
-                                    <option key={f.id} value={f.name}>{f.name}</option>
+                                    <option key={f._id} value={f.name}>{f.name}</option>
                                 ))}
                             </select>
                         </div>
@@ -303,17 +342,18 @@ export default function Subjects() {
                                 <th className="p-4">Department</th>
                                 <th className="p-4">Year/Sem</th>
                                 <th className="p-4">Type</th>
+                                <th className="p-4">Faculty</th>
                                 <th className="p-4 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="text-gray-700 text-sm">
                             {subjects.map((sub, index) => (
-                                <tr key={sub.id || index} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                                <tr key={sub._id || index} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
                                     <td className="p-4 font-medium">{sub.name}</td>
                                     <td className="p-4 font-mono text-xs">{sub.code}</td>
                                     <td className="p-4">
                                         <span className="bg-gray-100 text-gray-700 py-1 px-3 rounded-full text-[10px] font-bold">
-                                            {deptList.find(d => d.id === sub.departmentId)?.name || 'Unknown'}
+                                            {deptList.find(d => d._id === sub.departmentId)?.name || 'Unknown'}
                                         </span>
                                     </td>
                                     <td className="p-4 text-xs font-bold">Y{sub.year} / S{sub.semester}</td>
@@ -321,6 +361,10 @@ export default function Subjects() {
                                         <span className={`px-2 py-1 rounded text-[10px] font-black ${sub.type === 'Lab' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
                                             {sub.type}
                                         </span>
+                                    </td>
+                                    <td className="p-4 text-xs">
+                                        {sub.facultyName ? <span className="font-semibold text-blue-600">{sub.facultyName}</span> : <span className="text-gray-400">-</span>}
+                                        {sub.facultyName2 && <span className="font-semibold text-purple-600 block">{sub.facultyName2}</span>}
                                     </td>
                                     <td className="p-4 text-right flex justify-end gap-3">
                                         <button
@@ -334,10 +378,10 @@ export default function Subjects() {
                                                 if (window.confirm('Delete this subject?')) {
                                                     const originalSubjects = [...subjects];
                                                     // Optimistic Delete
-                                                    setSubjects(prev => prev.filter(item => item.id !== sub.id));
+                                                    setSubjects(prev => prev.filter(item => item._id !== sub._id));
 
                                                     try {
-                                                        await api.delete(`/subjects/${sub.id}`);
+                                                        await api.delete(`/subjects/${sub._id}`);
                                                     } catch (err) {
                                                         console.error(err);
                                                         setSubjects(originalSubjects); // Rollback
@@ -360,4 +404,3 @@ export default function Subjects() {
         </div >
     );
 }
-

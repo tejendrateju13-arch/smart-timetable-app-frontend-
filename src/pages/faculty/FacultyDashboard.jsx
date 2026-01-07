@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
-import { auth, db } from '../../firebase'; // Import auth and db
+import { useAuth } from '../../context/AuthContext';
 import AvailabilityEditor from '../../components/AvailabilityEditor';
 import TimetablePrintView from '../../components/TimetablePrintView';
 
 export default function FacultyDashboard() {
+    const { currentUser } = useAuth();
     const [attendanceToday, setAttendanceToday] = useState(false);
     const [leaves, setLeaves] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -12,9 +13,6 @@ export default function FacultyDashboard() {
     const [schedule, setSchedule] = useState(null);
     const [rearrangements, setRearrangements] = useState([]);
     const [facultyProfile, setFacultyProfile] = useState(null);
-    // Notifications handled by Global Layout
-    // const [notifications, setNotifications] = useState([]);
-    // const [showNotifications, setShowNotifications] = useState(false);
 
     // Rearrangement State
     const [showUrgentModal, setShowUrgentModal] = useState(false);
@@ -24,18 +22,12 @@ export default function FacultyDashboard() {
     const [incomingRequests, setIncomingRequests] = useState([]);
     const [myRequests, setMyRequests] = useState([]);
 
-    // DEBUG: Verify Update
-    // console.log("Faculty Dashboard v3.3 Loaded");
-
     // Leave Form State
     const [leaveData, setLeaveData] = useState({ startDate: '', endDate: '', reason: '' });
     const [message, setMessage] = useState('');
 
-    // Notifications polled globally
-    // const fetchNotifications = async (uid) => { ... }
-
     const fetchRequests = async () => {
-        if (!auth.currentUser) return;
+        if (!currentUser) return;
         try {
             const [inRes, myRes] = await Promise.all([
                 api.get('/attendance/rearrangement/pending-requests'),
@@ -52,58 +44,48 @@ export default function FacultyDashboard() {
         let isMounted = true;
 
         const fetchData = async () => {
-            if (auth.currentUser && isMounted) {
+            if (currentUser && isMounted) {
                 await fetchDashboardData();
                 await fetchRequests();
             }
         };
 
-        // Initial fetch
         fetchData();
-
-        // Poll every 2 minutes instead of 10s or whatever
         const interval = setInterval(fetchData, 120000);
 
         return () => {
             isMounted = false;
             clearInterval(interval);
         };
-    }, [auth.currentUser?.uid]); // Stable dependency
-
-    // Separate useEffect for notifications polling if needed more frequently? 
-    // No, 2 mins is fine. But we can add a manual refresh button if they want.
-
-    // fetchCandidates removed
-
+    }, [currentUser?.id || currentUser?._id]);
 
     const fetchDashboardData = async () => {
-        if (!auth.currentUser) return;
+        if (!currentUser) return;
         try {
-            // Fix Timezone issue: Use local date for YYYY-MM-DD
             const today = new Date();
             const offset = today.getTimezoneOffset() * 60000;
             const todayStr = (new Date(today - offset)).toISOString().slice(0, 10);
             const [
                 profileRes,
                 leavesRes,
-                historyRes
+                historyRes,
+                facultyDetailsRes
             ] = await Promise.all([
                 api.get('/auth/profile'),
                 api.get('/leaves/my-leaves'),
-                api.get('/attendance/my-history')
+                api.get('/attendance/my-history'),
+                api.get('/faculty/my-availability').catch(e => ({ data: null }))
             ]);
-            
-            // 1. Fetch Independent Data in Parallel
-            setFacultyProfile(profileRes.data);
+
+            const profileData = facultyDetailsRes.data || profileRes.data;
+            setFacultyProfile(profileData);
             setLeaves(leavesRes.data || []);
-            // setNotifications(notifRes.data || []);
 
             const marked = (historyRes.data || []).some(entry => entry.date === todayStr);
             setAttendanceToday(marked);
 
-            // 2. Dependent Data (Req ID/Dept)
-            const deptId = profileRes.data.departmentId;
-            const facultyName = profileRes.data.name;
+            const deptId = profileData.departmentId;
+            const facultyName = profileData.name;
 
             if (deptId) {
                 const [ttRes] = await Promise.all([
@@ -111,7 +93,6 @@ export default function FacultyDashboard() {
                 ]);
 
                 setSchedule(ttRes.data?.schedule || null);
-                console.log("Full Schedule Data:", ttRes.data?.schedule);
             }
 
         } catch (error) {
@@ -131,7 +112,7 @@ export default function FacultyDashboard() {
             setAttendanceToday(true);
             setMessage(status === 'Absent' ? 'Marked Absent. Classes Rearranged.' : 'Attendance marked successfully!');
             setTimeout(() => setMessage(''), 5000);
-            fetchDashboardData(); // Refresh to see rearrangements if absent
+            fetchDashboardData();
         } catch (error) {
             setMessage('Error: ' + (error.response?.data?.message || 'Failed'));
         }
@@ -144,7 +125,7 @@ export default function FacultyDashboard() {
             setShowLeaveForm(false);
             setMessage('Leave application submitted.');
             setLeaveData({ startDate: '', endDate: '', reason: '' });
-            fetchDashboardData(); // Refresh list
+            fetchDashboardData();
         } catch (error) {
             alert('Failed to submit leave');
         }
@@ -185,9 +166,9 @@ export default function FacultyDashboard() {
     const confirmSubstitution = async (substituteId) => {
         if (!confirm("Are you sure you want to assign this Faculty?")) return;
 
-        console.log("Confirming Substitution with Slot Data:", selectedSlotForUrgent);
-        if (!selectedSlotForUrgent.subjectName) {
-            console.warn("Subject Name is missing in slot data!");
+        if (!substituteId) {
+            alert("Error: Invalid Substitute ID");
+            return;
         }
 
         try {
@@ -195,7 +176,6 @@ export default function FacultyDashboard() {
             const offset = today.getTimezoneOffset() * 60000;
             const dateStr = (new Date(today - offset)).toISOString().slice(0, 10);
 
-            // Ensure we are sending the strings, fallback to defaults if strictly necessary
             const payload = {
                 slotId: selectedSlotForUrgent.slotId,
                 date: dateStr,
@@ -203,25 +183,22 @@ export default function FacultyDashboard() {
                 subjectName: selectedSlotForUrgent.subjectName || 'Subject Unspecified',
                 className: selectedSlotForUrgent.className || selectedSlotForUrgent.classLabel || 'Class Unspecified'
             };
-            console.log("Sending Payload:", payload);
 
             await api.post('/attendance/period-absence', payload);
 
             setMessage(`Success! Request sent to substitute.`);
             setShowUrgentModal(false);
             fetchDashboardData();
-            fetchRequests(); // Refresh requests list immediately
+            fetchRequests();
 
         } catch (e) {
             alert(e.response?.data?.message || "Error assigning substitute");
         }
     };
 
-    // Helper to get today's classes from schedule
     const getTodayClasses = () => {
         if (!schedule) return [];
 
-        // Robust Local YYYY-MM-DD
         const now = new Date();
         const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
 
@@ -229,15 +206,8 @@ export default function FacultyDashboard() {
         const todayName = days[now.getDay()];
         const daySchedule = schedule[todayName] || {};
 
-        // Convert object to array: { P1: {...}, P2: {...} }
         return Object.entries(daySchedule).map(([key, val]) => {
-            // Check if already rearranged for TODAY
             const existing = myRequests.find(req => req.slotId === key && req.date === dateStr && req.status !== 'rejected');
-
-            // Console Debug for logic verification
-            // if (key === 'P4') {
-            //    console.log("[DEBUG P4] Date Match:", dateStr, "Requests:", myRequests);
-            // }
 
             return {
                 slotId: key,
@@ -248,38 +218,30 @@ export default function FacultyDashboard() {
         }).sort((a, b) => a.slotId.localeCompare(b.slotId));
     };
 
-    // NEW: Handle Response (Accept/Reject)
     const handleResponse = async (rearrangementId, status) => {
         try {
-            console.log(`Responding to request ${rearrangementId} with ${status}`);
-            const myUid = facultyProfile.uid || facultyProfile.id;
+            const myUid = facultyProfile.uid || facultyProfile.id || facultyProfile._id;
 
             await api.post('/attendance/rearrangement/respond', {
-                requestId: rearrangementId, // Fixed key match
+                requestId: rearrangementId,
                 status,
                 uid: myUid
             });
 
-            // Optimistic UI Update: Update status instead of removing
             setIncomingRequests(prev => prev.map(req =>
-                req.id === rearrangementId ? { ...req, status } : req
+                (req.id === rearrangementId || req._id === rearrangementId) ? { ...req, status } : req
             ));
 
-            // Refresh to ensure sync (optional, maybe just wait for next poll)
-            // setTimeout(() => {
-            //    fetchRequests();
-            //    fetchDashboardData();
-            // }, 1000);
+            // Refresh requests immediately
+            setTimeout(fetchRequests, 500);
 
         } catch (error) {
             console.error("Error responding:", error);
             alert("Failed to update status. " + (error.response?.data?.message || ''));
-            // Revert changes if needed (scoping issue, simpler to just re-fetch)
             fetchRequests();
         }
     };
 
-    // Skeleton Loading Component
     if (loading) return (
         <div className="space-y-6 p-6 animate-pulse">
             <div className="h-10 bg-gray-200 rounded w-1/3 mb-6"></div>
@@ -296,20 +258,10 @@ export default function FacultyDashboard() {
         <div className="space-y-6 p-6">
             <h2 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
                 Faculty Dashboard
-                <span className="text-xs bg-green-100 text-green-800 px-3 py-1 rounded-full border border-green-200 shadow-sm">v3.3 (Manual Select)</span>
+                <span className="text-xs bg-green-100 text-green-800 px-3 py-1 rounded-full border border-green-200 shadow-sm">v3.3 (Connected)</span>
             </h2>
             {message && <div className={`p-3 rounded ${message.includes('Rearranged') ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}`}>{message}</div>}
 
-            {/* Modals Removed */}
-
-            {/* Notifications Panel - NEW */}
-            {/* Notifications removed from Dashboard (Present in Sidebar/Layout) */}
-
-
-
-
-
-            {/* Urgent Absence & Requests Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Urgent Absence Card */}
                 <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-red-500">
@@ -322,14 +274,12 @@ export default function FacultyDashboard() {
                         🚨 Request Rearrangement
                     </button>
 
-                    {/* My Requests Preview */}
                     <div className="mt-4 border-t pt-4">
-                        {/* 1. Accepted Requests Prominently */}
                         {myRequests.filter(r => r.status === 'accepted').length > 0 && (
                             <div className="mb-4 space-y-2">
                                 <h4 className="font-bold text-green-700 text-sm">✅ Covered Classes</h4>
                                 {myRequests.filter(r => r.status === 'accepted').map(req => (
-                                    <div key={req.id} className="p-3 bg-green-50 border border-green-200 rounded flex justify-between items-center shadow-sm">
+                                    <div key={req._id || req.id} className="p-3 bg-green-50 border border-green-200 rounded flex justify-between items-center shadow-sm">
                                         <div>
                                             <span className="block font-bold text-green-900">{req.substituteName || req.substituteFacultyName}</span>
                                             <span className="text-xs text-green-700">is covering {req.slotId} ({req.date.split('-').slice(1).join('/')})</span>
@@ -340,13 +290,12 @@ export default function FacultyDashboard() {
                             </div>
                         )}
 
-                        {/* 2. Pending/Rejected List */}
                         {myRequests.filter(r => r.status !== 'accepted').length > 0 && (
                             <div>
                                 <h4 className="font-bold text-gray-700 text-sm mb-2">Pending / Rejected</h4>
                                 <ul className="space-y-2 max-h-40 overflow-y-auto">
                                     {myRequests.filter(r => r.status !== 'accepted').map(req => (
-                                        <li key={req.id} className="text-xs p-2 bg-gray-50 rounded border flex justify-between items-center">
+                                        <li key={req._id || req.id} className="text-xs p-2 bg-gray-50 rounded border flex justify-between items-center">
                                             <span>{req.slotId} - {req.substituteName || req.substituteFacultyName}</span>
                                             <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${req.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
                                                 }`}>{req.status}</span>
@@ -368,11 +317,10 @@ export default function FacultyDashboard() {
                     ) : (
                         <ul className="space-y-3">
                             {incomingRequests.map(req => (
-                                <li key={req.id} className={`p-3 border rounded ${req.status === 'accepted' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-100'}`}>
+                                <li key={req._id || req.id} className={`p-3 border rounded ${req.status === 'accepted' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-100'}`}>
                                     <div className="flex justify-between items-start mb-2">
                                         <div>
                                             <span className="block font-bold text-gray-800">{req.originalFacultyName || req.urgentFacultyName}</span>
-                                            {/* <span className="text-sm font-semibold text-gray-700">{req.subjectName || 'Unknown Subject'}</span> */}
                                             <span className="text-xs text-gray-600 block">{req.classLabel || req.className || 'Class TBD'} | {req.periodLabel || req.slotId}</span>
                                             <span className="text-xs text-gray-500 block mt-1">{new Date(req.date).toLocaleDateString()}</span>
                                         </div>
@@ -387,12 +335,12 @@ export default function FacultyDashboard() {
                                         {req.status === 'pending' ? (
                                             <>
                                                 <button
-                                                    onClick={() => handleResponse(req.id, 'accepted')}
+                                                    onClick={() => handleResponse(req._id || req.id, 'accepted')}
                                                     className="flex-1 bg-green-600 text-white py-1.5 rounded text-sm hover:bg-green-700 font-bold shadow-sm">
                                                     Accept Assignment
                                                 </button>
                                                 <button
-                                                    onClick={() => handleResponse(req.id, 'rejected')}
+                                                    onClick={() => handleResponse(req._id || req.id, 'rejected')}
                                                     className="flex-1 bg-red-500 text-white py-1.5 rounded text-sm hover:bg-red-600 font-bold shadow-sm">
                                                     Reject
                                                 </button>
@@ -402,8 +350,8 @@ export default function FacultyDashboard() {
                                                 onClick={async () => {
                                                     if (!confirm('Remove this from your list?')) return;
                                                     try {
-                                                        await api.delete(`/attendance/rearrangement/${req.id}`);
-                                                        setIncomingRequests(prev => prev.filter(r => r.id !== req.id));
+                                                        await api.delete(`/attendance/rearrangement/${req._id || req.id}`);
+                                                        setIncomingRequests(prev => prev.filter(r => (r._id !== req._id && r.id !== req.id)));
                                                     } catch (e) { alert('Failed to delete'); }
                                                 }}
                                                 className="w-full bg-gray-200 text-gray-700 py-1.5 rounded text-sm hover:bg-gray-300 font-bold shadow-sm flex items-center justify-center gap-2">
@@ -443,7 +391,6 @@ export default function FacultyDashboard() {
                                                     </div>
                                                 </div>
 
-                                                {/* Badge Logic */}
                                                 {cls.isRearranged ? (
                                                     <div className="text-right">
                                                         {cls.rearrangementStatus === 'pending' && (
@@ -497,7 +444,7 @@ export default function FacultyDashboard() {
                                             ) : (
                                                 <div className="grid gap-2 max-h-60 overflow-y-auto">
                                                     {availableSubs.map(sub => (
-                                                        <div key={sub.id} className="flex justify-between items-center p-3 border rounded hover:bg-green-50 cursor-pointer transition">
+                                                        <div key={sub._id || sub.id} className="flex justify-between items-center p-3 border rounded hover:bg-green-50 cursor-pointer transition">
                                                             <div className="flex items-center gap-3">
                                                                 <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs">
                                                                     {sub.name.charAt(0)}
@@ -508,7 +455,7 @@ export default function FacultyDashboard() {
                                                                 </div>
                                                             </div>
                                                             <button
-                                                                onClick={(e) => { e.stopPropagation(); confirmSubstitution(sub.id); }}
+                                                                onClick={(e) => { e.stopPropagation(); confirmSubstitution(sub._id || sub.id); }}
                                                                 className="bg-green-600 text-white px-3 py-1.5 rounded text-xs hover:bg-green-700 shadow-sm font-bold">
                                                                 Request
                                                             </button>
@@ -595,7 +542,7 @@ export default function FacultyDashboard() {
                         {leaves.length === 0 ? <p className="text-sm text-gray-400">No leave history.</p> : (
                             <ul className="max-h-40 overflow-y-auto space-y-2">
                                 {leaves.map(leave => (
-                                    <li key={leave.id || Math.random()} className="text-sm border-b pb-1">
+                                    <li key={leave._id || leave.id || Math.random()} className="text-sm border-b pb-1">
                                         <div className="flex justify-between">
                                             <span className="font-medium">{leave.startDate} <span className="text-gray-400">to</span> {leave.endDate}</span>
                                             <span className={`px-2 rounded-full text-[10px] font-bold ${leave.status === 'Approved' ? 'bg-green-100 text-green-800' :
@@ -611,7 +558,6 @@ export default function FacultyDashboard() {
                 )}
             </div>
 
-
             {/* My Timetable Section */}
             {
                 schedule && (
@@ -620,7 +566,6 @@ export default function FacultyDashboard() {
                             <h3 className="text-xl font-bold text-gray-800">My Weekly Schedule</h3>
                         </div>
 
-                        {/* Use the standard Print View for consistent formatting */}
                         <div className="overflow-x-auto">
                             <TimetablePrintView
                                 timetableData={schedule}
@@ -634,7 +579,7 @@ export default function FacultyDashboard() {
                                     section: 'Various',
                                     classIncharge: 'Self',
                                     wef: new Date().toLocaleDateString(),
-                                    subjects: [] // Optional
+                                    subjects: []
                                 }}
                             />
                         </div>

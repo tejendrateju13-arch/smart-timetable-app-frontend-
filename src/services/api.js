@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { auth } from '../firebase';
 
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL,
@@ -13,14 +12,10 @@ if (window.location.protocol === 'https:' && api.defaults.baseURL.startsWith('ht
 }
 
 api.interceptors.request.use(async (config) => {
-    const user = auth.currentUser;
-    if (user) {
-        try {
-            const token = await user.getIdToken();
-            config.headers.Authorization = `Bearer ${token}`;
-        } catch (e) {
-            console.error("[API] Failed to get token", e);
-        }
+    // Get token from localStorage
+    const token = localStorage.getItem('token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
 }, (error) => {
@@ -28,6 +23,17 @@ api.interceptors.request.use(async (config) => {
 });
 
 api.interceptors.response.use((response) => response, (error) => {
+    if (error.response && error.response.status === 401) {
+        // Token expired or invalid
+        // Avoid infinite loop if already on login page
+        if (!window.location.pathname.includes('/login')) {
+            console.warn("Session expired, redirecting to login.");
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+        }
+    }
+
     if (error.code === "ERR_NETWORK" || error.message === "Network Error") {
         console.error("🚨 NETWORK ERROR DETECTED");
         console.error("Possible causes:");

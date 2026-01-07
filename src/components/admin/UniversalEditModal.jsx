@@ -36,8 +36,8 @@ export default function UniversalEditModal({ isOpen, onClose, item, onSave, titl
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
-                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all max-h-[90vh] flex flex-col">
+                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 flex-shrink-0">
                     <h3 className="text-xl font-bold text-gray-800">{title}</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
                         <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -46,7 +46,7 @@ export default function UniversalEditModal({ isOpen, onClose, item, onSave, titl
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
                     {fields.map(field => {
                         // Check condition if it exists
                         if (field.condition && !field.condition(formData)) return null;
@@ -56,7 +56,7 @@ export default function UniversalEditModal({ isOpen, onClose, item, onSave, titl
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">{field.label}</label>
                                 {field.type === 'select' ? (
                                     <select
-                                        className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition"
+                                        className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition bg-white"
                                         value={formData[field.name] || ''}
                                         onChange={(e) => setFormData({ ...formData, [field.name]: e.target.value })}
                                         required={field.required !== false}
@@ -104,7 +104,7 @@ export default function UniversalEditModal({ isOpen, onClose, item, onSave, titl
                         );
                     })}
 
-                    <div className="flex gap-3 pt-4">
+                    <div className="flex gap-3 pt-4 border-t border-gray-50 mt-4">
                         <button
                             type="button"
                             onClick={onClose}

@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '../firebase';
-// import api from '../services/api'; // Not needed
+import api from '../services/api';
 
 export default function ForgotPassword() {
     const [email, setEmail] = useState('');
@@ -17,15 +15,11 @@ export default function ForgotPassword() {
         setError('');
 
         try {
-            await sendPasswordResetEmail(auth, email);
-            setMessage('Password reset email sent! Please check your inbox.');
+            const response = await api.post('/auth/forgot-password', { email });
+            setMessage(response.data.message || 'Password reset email sent! Please check your inbox.');
         } catch (err) {
             console.error("Reset Error:", err);
-            if (err.code === 'auth/user-not-found') {
-                setError('No account found with this email.');
-            } else {
-                setError(err.message || 'Failed to send reset email');
-            }
+            setError(err.response?.data?.message || 'Failed to send reset email');
         } finally {
             setLoading(false);
         }

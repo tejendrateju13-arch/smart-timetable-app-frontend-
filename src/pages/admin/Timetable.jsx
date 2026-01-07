@@ -16,8 +16,6 @@ export default function Timetable() {
 
     // View Mode State: 'Class' or 'Faculty'
     // Default to 'Class' for Admin/Student, 'Faculty' (implicit) for Faculty
-    // View Mode State: 'Class' or 'Faculty'
-    // Default to 'Class' for Admin/Student, 'Faculty' (implicit) for Faculty
     const [viewMode, setViewMode] = useState('Class');
     const [facultyList, setFacultyList] = useState([]);
     const [selectedFaculty, setSelectedFaculty] = useState('');
@@ -34,7 +32,11 @@ export default function Timetable() {
         if (currentUser?.role === 'Admin' || currentUser?.role === 'HOD') {
             const fetchFaculty = async () => {
                 try {
-                    const res = await api.get(`/faculty?departmentId=${currentDept?.id}`);
+                    // Safety check for currentDept
+                    if (!currentDept?._id && !currentDept?.id) return;
+                    const deptId = currentDept._id || currentDept.id;
+
+                    const res = await api.get(`/faculty?departmentId=${deptId}`);
                     setFacultyList(res.data || []);
                 } catch (e) {
                     console.error("Failed to load faculty list", e);
@@ -74,8 +76,13 @@ export default function Timetable() {
 
     const fetchTimetableData = async () => {
         if (!currentUser) return;
+
+        // CRITICAL FIX: Ensure currentDept is valid before accessing ID
+        if (!currentDept || (!currentDept.id && !currentDept._id)) return;
+        const deptId = currentDept._id || currentDept.id;
+
         setLoading(true);
-        console.log("Fetching Timetable...", { role: currentUser.role, viewMode, filters, selectedFaculty, currentDept: currentDept?.id });
+        console.log("Fetching Timetable...", { role: currentUser.role, viewMode, filters, selectedFaculty, currentDept: deptId });
         try {
             // CASE 1: FACULTY VIEW (Self or Admin Selected)
             // Use optional chaining for safety
@@ -92,28 +99,37 @@ export default function Timetable() {
                 }
 
                 const encodedName = encodeURIComponent(name);
-                const res = await api.get(`/generator/faculty-consolidated?departmentId=${currentDept.id}&facultyName=${encodedName}`);
+                const res = await api.get(`/generator/faculty-consolidated?departmentId=${deptId}&facultyName=${encodedName}`);
 
                 // Construct pseudo-metadata for the print view
-                const schedule = res.data.schedule;
+                const schedule = res.data?.schedule; // Safe access
+
+                if (!schedule) {
+                    setTimetable(null);
+                    return;
+                }
 
                 // Extract subjects from schedule for the footer table
                 const uniqueSubjects = [];
                 const seenSubjects = new Set();
 
-                Object.values(schedule).forEach(day => {
-                    Object.values(day).forEach(period => {
-                        const sName = period.subjectName || period.subject;
-                        if (sName && sName !== 'Free' && !seenSubjects.has(sName)) {
-                            seenSubjects.add(sName);
-                            uniqueSubjects.push({
-                                name: sName,
-                                code: period.subjectCode || '-', // If available
-                                facultyName: name
-                            });
-                        }
+                // CRITICAL FIX: Ensure schedule is an object before using Object.values
+                if (schedule && typeof schedule === 'object') {
+                    Object.values(schedule).forEach(day => {
+                        if (!day) return;
+                        Object.values(day).forEach(period => {
+                            const sName = period?.subjectName || period?.subject;
+                            if (sName && sName !== 'Free' && !seenSubjects.has(sName)) {
+                                seenSubjects.add(sName);
+                                uniqueSubjects.push({
+                                    name: sName,
+                                    code: period.subjectCode || '-', // If available
+                                    facultyName: name
+                                });
+                            }
+                        });
                     });
-                });
+                }
 
                 const metaData = {
                     year: 'All',
@@ -124,7 +140,7 @@ export default function Timetable() {
                     subjects: uniqueSubjects
                 };
 
-                setTimetable(schedule ? { schedule, metaData } : null);
+                setTimetable({ schedule, metaData });
 
             } else {
                 // CASE 2: CLASS VIEW (Admin/Student)
@@ -137,22 +153,24 @@ export default function Timetable() {
                     section = currentUser.section || section;
                 }
 
-                const q = `?departmentId=${currentDept.id}&year=${year}&semester=${semester}&section=${section}`;
+                const q = `?departmentId=${deptId}&year=${year}&semester=${semester}&section=${section}`;
                 const res = await api.get(`/generator/published${q}`);
 
                 // Wrap DB result to match expected structure { schedule, metaData }
-                const dbData = res.data.timetable;
+                const dbData = res.data?.timetable;
+
                 if (dbData) {
                     // Fallback: If subjects are missing in metadata (Legacy Data), extract them from schedule
                     if (!dbData.metaData || !dbData.metaData.subjects || dbData.metaData.subjects.length === 0) {
                         const uniqueSubjects = [];
                         const seenSubjects = new Set();
-                        if (dbData.schedule) {
+                        if (dbData.schedule && typeof dbData.schedule === 'object') {
                             Object.values(dbData.schedule).forEach(day => {
+                                if (!day) return;
                                 Object.values(day).forEach(period => {
-                                    const sName = period.subjectName || period.subject;
+                                    const sName = period?.subjectName || period?.subject;
                                     // Use facultyName from period if available, or 'TBD'
-                                    const fName = period.facultyName || period.faculty || 'TBD';
+                                    const fName = period?.facultyName || period?.faculty || 'TBD';
 
                                     if (sName && sName !== 'Free' && !seenSubjects.has(sName)) {
                                         seenSubjects.add(sName);
@@ -190,18 +208,21 @@ export default function Timetable() {
     const [rearrangements, setRearrangements] = useState([]);
     useEffect(() => {
         const fetchRearrangements = async () => {
-            if (!currentDept?.id) return;
+            // Safety check for currentDept
+            if (!currentDept?._id && !currentDept?.id) return;
+            const deptId = currentDept._id || currentDept.id;
+
             try {
                 // Determine user context for filtering
                 // Students need specific Year/Section, Faculty see all Dept rearrangements usually (or filtered)
                 // For now, fetch ALL dept rearrangements for today
                 const today = new Date().toISOString().split('T')[0];
                 const res = await api.get('/attendance/rearrangements', {
-                    params: { date: today, departmentId: currentDept.id }
+                    params: { date: today, departmentId: deptId }
                 });
 
                 // If Student, filter locally just to be safe (or rely on API if filtered)
-                let data = res.data;
+                let data = res.data || [];
                 if (currentUser.role === 'Student') {
                     data = data.filter(r => r.year == currentUser.year && r.section == currentUser.section);
                 }
@@ -314,7 +335,7 @@ export default function Timetable() {
                                     >
                                         <option value="">-- Choose Faculty --</option>
                                         {facultyList.map(f => (
-                                            <option key={f.id} value={f.name}>{f.name}</option>
+                                            <option key={f._id || f.id} value={f.name}>{f.name}</option>
                                         ))}
                                     </select>
                                 </div>

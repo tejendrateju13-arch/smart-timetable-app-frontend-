@@ -1,17 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
+import { socket } from '../services/socket';
 
 export default function NotificationCenter() {
     const [notifications, setNotifications] = useState([]);
     const [showDropdown, setShowDropdown] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
-
-    useEffect(() => {
-        fetchNotifications();
-        // Poll every 30 seconds for new notifications
-        const interval = setInterval(fetchNotifications, 30000);
-        return () => clearInterval(interval);
-    }, []);
 
     const fetchNotifications = async () => {
         try {
@@ -22,6 +16,25 @@ export default function NotificationCenter() {
             console.error('Failed to fetch notifications');
         }
     };
+
+    useEffect(() => {
+        fetchNotifications();
+
+        // Socket Listener
+        if (socket) {
+            const handleNewNotification = (newNotification) => {
+                setNotifications(prev => [newNotification, ...prev]);
+                setUnreadCount(prev => prev + 1);
+                // Optional: Play sound or toast
+            };
+
+            socket.on('notification', handleNewNotification);
+
+            return () => {
+                socket.off('notification', handleNewNotification);
+            };
+        }
+    }, [socket]); // Re-bind if socket instance changes (it shouldn't but safe)
 
     const markAsRead = async (id) => {
         try {
@@ -67,9 +80,9 @@ export default function NotificationCenter() {
                             <ul>
                                 {notifications.map(n => (
                                     <li
-                                        key={n.id}
+                                        key={n.id || Math.random()}
                                         onClick={() => {
-                                            markAsRead(n.id);
+                                            if (!n.read) markAsRead(n.id);
                                             if (n.link) window.location.href = n.link;
                                         }}
                                         className={`p-3 border-b hover:bg-gray-50 cursor-pointer ${n.read ? 'opacity-60' : 'bg-blue-50'}`}
@@ -80,7 +93,7 @@ export default function NotificationCenter() {
                                         <span className="text-[10px] text-gray-400 mt-1 block">
                                             {(() => {
                                                 const d = n.createdAt || n.timestamp;
-                                                const dateObj = d?.toDate ? d.toDate() : new Date(d);
+                                                const dateObj = d ? new Date(d) : new Date();
                                                 return isNaN(dateObj) ? 'Just now' : dateObj.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
                                             })()}
                                         </span>

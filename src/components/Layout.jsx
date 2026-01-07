@@ -2,11 +2,10 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useDepartment } from '../context/DepartmentContext';
 import { Link, Outlet } from 'react-router-dom';
-import { auth } from '../firebase';
 import NotificationCenter from './NotificationCenter';
 
 export default function Layout() {
-    const { currentUser } = useAuth();
+    const { currentUser, logout } = useAuth();
     const { currentDept, departments, switchDepartment, loading: loadingContext } = useDepartment();
     const isAdmin = currentUser?.role === 'Admin';
     const isHOD = currentUser?.role === 'HOD';
@@ -93,6 +92,7 @@ export default function Layout() {
 
                         {(isAdmin || isHOD) && (
                             <>
+                                <Link to="/admin/departments" onClick={() => setSidebarOpen(false)} className="block px-4 py-3 hover:bg-gray-100 rounded-lg mb-1 text-teal-600 font-medium">Departments</Link>
                                 <Link to="/admin/subjects" onClick={() => setSidebarOpen(false)} className="block px-4 py-3 hover:bg-gray-100 rounded-lg mb-1">Subjects</Link>
                                 <Link to="/admin/faculty" onClick={() => setSidebarOpen(false)} className="block px-4 py-3 hover:bg-gray-100 rounded-lg mb-1">Faculty</Link>
                                 <Link to="/admin/students" onClick={() => setSidebarOpen(false)} className="block px-4 py-3 hover:bg-gray-100 rounded-lg mb-1">Students</Link>
@@ -112,7 +112,7 @@ export default function Layout() {
                         <button
                             onClick={() => {
                                 setSidebarOpen(false);
-                                auth.signOut();
+                                logout();
                             }}
                             className="block w-full text-left px-4 py-3 text-red-500 hover:bg-red-50 rounded-lg mt-4"
                         >
