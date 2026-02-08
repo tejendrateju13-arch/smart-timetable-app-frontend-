@@ -9,8 +9,9 @@ export default function Subjects() {
     const [deptList, setDeptList] = useState([]);
     const [facultyList, setFacultyList] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [newSubject, setNewSubject] = useState({ name: '', departmentId: currentDept?.id || '', type: 'Theory', code: '', year: 1, semester: 1, facultyName: '', facultyName2: '' });
+    const [newSubject, setNewSubject] = useState({ name: '', shortName: '', departmentId: currentDept?.id || '', type: 'Theory', code: '', year: 1, semester: 1, facultyName: '', facultyName2: '' });
     const [editingItem, setEditingItem] = useState(null);
+    const [activeTab, setActiveTab] = useState(1); // Year Tab State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [error, setError] = useState('');
 
@@ -45,7 +46,7 @@ export default function Subjects() {
         try {
             const res = await api.post('/subjects', newSubject);
             setSubjects(prev => [...prev, res.data]);
-            setNewSubject({ name: '', departmentId: currentDept?.id || '', type: 'Theory', code: '', year: 1, semester: 1, facultyName: '', facultyName2: '' });
+            setNewSubject({ name: '', shortName: '', departmentId: currentDept?.id || '', type: 'Theory', code: '', year: 1, semester: 1, facultyName: '', facultyName2: '' });
         } catch (err) {
             console.error(err);
             alert('Failed to add subject');
@@ -76,6 +77,7 @@ export default function Subjects() {
 
     const subjectFields = [
         { name: 'name', label: 'Subject Name', type: 'text' },
+        { name: 'shortName', label: 'Short Name (for Grid)', type: 'text' },
         { name: 'code', label: 'Subject Code', type: 'text' },
         {
             name: 'departmentId',
@@ -184,6 +186,15 @@ export default function Subjects() {
                         />
                     </div>
                     <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Short Name</label>
+                        <input
+                            className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            value={newSubject.shortName}
+                            onChange={e => setNewSubject({ ...newSubject, shortName: e.target.value })}
+                            placeholder="e.g. RES"
+                        />
+                    </div>
+                    <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Subject Code</label>
                         <input
                             className="w-full border border-gray-300 p-2 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
@@ -271,8 +282,18 @@ export default function Subjects() {
             {/* Subjects List */}
             < div className="bg-white rounded-lg shadow-md overflow-hidden" >
                 <div className="p-4 border-b bg-gray-50 border-gray-200 flex justify-between items-center">
-                    <h3 className="font-semibold text-gray-700">Subjects List</h3>
-                    <span className="text-sm text-gray-500">Total: {subjects.length}</span>
+                    <div className="flex gap-2">
+                        {[1, 2, 3, 4].map(y => (
+                            <button
+                                key={y}
+                                onClick={() => setActiveTab(y)}
+                                className={`px-4 py-2 rounded-t-lg font-bold transition-all ${activeTab === y ? 'bg-white border-t-2 border-blue-600 text-blue-600 shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                            >
+                                Year {y}
+                            </button>
+                        ))}
+                    </div>
+                    <span className="text-sm text-gray-500 font-bold">Total: {subjects.filter(s => parseInt(s.year) === activeTab).length}</span>
                 </div>
 
                 {!currentDept && loading ? (
@@ -307,9 +328,12 @@ export default function Subjects() {
                             </tr>
                         </thead>
                         <tbody className="text-gray-700 text-sm">
-                            {subjects.map((sub, index) => (
+                            {subjects.filter(s => parseInt(s.year) === activeTab).map((sub, index) => (
                                 <tr key={sub.id || index} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
-                                    <td className="p-4 font-medium">{sub.name}</td>
+                                    <td className="p-4 font-medium">
+                                        {sub.name}
+                                        {sub.shortName && <span className="ml-2 text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded">({sub.shortName})</span>}
+                                    </td>
                                     <td className="p-4 font-mono text-xs">{sub.code}</td>
                                     <td className="p-4">
                                         <span className="bg-gray-100 text-gray-700 py-1 px-3 rounded-full text-[10px] font-bold">

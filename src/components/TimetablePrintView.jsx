@@ -1,8 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { useReactToPrint } from 'react-to-print';
 import { useAuth } from '../context/AuthContext';
+import html2pdf from 'html2pdf.js';
 
-const TimetablePrintView = ({ timetableData, metaData, rearrangements = [] }) => {
+const TimetablePrintView = ({ timetableData, metaData, rearrangements = [], isFacultyView = false }) => {
     const componentRef = useRef(null);
     const { currentUser } = useAuth();
 
@@ -21,131 +21,77 @@ const TimetablePrintView = ({ timetableData, metaData, rearrangements = [] }) =>
         }
     }, [metaData]);
 
-    const handlePrint = useReactToPrint({
-        content: () => componentRef.current,
-        documentTitle: `Timetable_${new Date().toISOString().slice(0, 10)}`,
-        pageStyle: `
-            @page {
-                size: A4 landscape;
-                margin: 0;
+    const handleDownloadPDF = () => {
+        const element = document.getElementById('print-area');
+        const opt = {
+            margin: 2, // 2mm margins (Tight fit)
+            filename: `Timetable_${new Date().toISOString().slice(0, 10)}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true, windowWidth: element.scrollWidth, scrollY: 0 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+            pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+        };
+
+        html2pdf().set(opt).from(element).save();
+    };
+
+    const handlePrint = () => {
+        window.print();
+    };
+
+    // REFINED SINGLE PAGE PRINT STYLES - EXACT MATCH DIMENSIONS
+    const PRINT_STYLES = `
+        @page { size: A4 landscape; margin: 4mm; }
+        @media print {
+            body { margin: 0; padding: 0; }
+            body * { visibility: hidden; }
+            #print-area, #print-area * { visibility: visible; }
+            #print-area {
+                position: absolute; left: 0; top: 0;
+                width: 280mm !important; /* Full A4 Landscape Printable Width */
+                height: 190mm !important; /* Strict Height Limit for Single Page */
+                margin: 0 auto; padding: 0 !important;
+                overflow: hidden !important; /* Prevent 2nd page spill */
+                background: white;
             }
-            @media print {
-                html, body {
-                    height: auto !important;
-                    min-height: auto !important;
-                    max-height: none !important;
-                    overflow: visible !important;
-                    margin: 0 !important;
-                    padding: 0 !important;
-                    background: white !important;
-                }
+            .no-print { display: none !important; }
+        }
+        .preview-wrapper { width: 297mm; padding: 5mm; background: white; margin: 0 auto; overflow-x: auto; }
+        #print-area { width: 280mm; margin: 0 auto; font-family: 'Times New Roman', Times, serif; color: black; }
+        
+        /* Table Styles - FULL WIDTH BUT COMPACT HEIGHT */
+        table { width: 100%; table-layout: fixed; border-collapse: collapse; border: 1px solid black; margin-bottom: 2px; page-break-inside: avoid; border-spacing: 0; }
+        td, th { border: 1px solid black; padding: 1mm; text-align: center; vertical-align: middle; line-height: 1.0; word-wrap: break-word; overflow: hidden; white-space: normal; }
+        
+        /* Specific Heights & Fonts */
+        th { font-weight: bold; background: #f0f0f0; font-size: 9pt; height: 9mm; } /* Compact Header 9mm */
+        td { font-size: 7pt; height: 8mm; } /* Compact Body 8mm to fit vertically */
+        
+        /* Text Wrapping Helpers */
+        .cell-content { 
+            max-height: 8mm; 
+            overflow: hidden; 
+            display: flex; 
+            flex-direction: column;
+            align-items: center; 
+            justify-content: center; 
+            width: 100%;
+            height: 100%; 
+        }
+        
+        /* Header Text Styles */
+        .header-college { font-size: 16pt; font-weight: 900; text-align: center; margin-bottom: 1px; line-height: 1.1; letter-spacing: 0.5px; }
+        .header-sub { font-size: 11pt; font-weight: bold; text-align: center; margin-bottom: 1px; line-height: 1.1; }
+        .header-details { font-size: 10pt; font-weight: bold; }
+        .num-font { font-family: 'Arial', sans-serif; }
+    `;
 
-                /* HIDE EVERYTHING ELSE */
-                body > *:not(.print-root) {
-                    display: none !important;
-                }
+    // Determine if we should show the Faculty Layout (Hidden headers, Class info in grid)
+    // Cases: Logged in as Faculty OR Admin viewing 'Faculty View'
+    const showFacultyLayout = currentUser?.role === 'Faculty' || isFacultyView;
 
-                #root {
-                    display: none !important;
-                }
-
-                /* RESET ALL SCROLL/HEIGHTS FOR PRINT CONTAINER */
-                .print-container {
-                    display: block !important; 
-                    position: static !important;
-                    width: 100% !important;
-                    height: auto !important;
-                    min-height: auto !important;
-                    max-height: none !important;
-                    overflow: visible !important;
-                    
-                    /* KEY FIX: ZOOM TO FIT ONE PAGE */
-                    zoom: 0.9 !important;
-                    
-                    margin: 0 !important;
-                    padding: 5mm !important; /* Small internal padding */
-                    background: white !important;
-                    color: black !important;
-                    font-family: 'Times New Roman', Times, serif !important;
-                    
-                    /* No Page Breaks */
-                    page-break-inside: avoid !important;
-                    break-inside: avoid !important;
-                }
-
-                /* Override inline styles that might interfere */
-                .print-container[style] {
-                    min-width: 0 !important;
-                    width: 100% !important;
-                    height: auto !important;
-                }
-
-                /* PREVENT BREAKS GLOBALLY */
-                table, tr, td, th, tbody, thead, .header-college, .header-sub, .signature-wrapper {
-                    page-break-before: avoid !important;
-                    page-break-after: avoid !important;
-                    page-break-inside: avoid !important;
-                    break-inside: avoid !important;
-                }
-
-                .no-print, button, .shadow-lg { display: none !important; }
-
-                /* FORCE SERIF GLOBALLY */
-                * { font-family: 'Times New Roman', Times, serif !important; }
-
-                /* HEADER STYLES */
-                .header-college { font-size: 16pt !important; font-weight: bold !important; text-transform: uppercase !important; }
-                .header-sub { font-size: 11pt !important; font-weight: bold !important; }
-
-                /* TABLE STYLES - Content 10.5pt - 11pt */
-                table {
-                    width: 100% !important;
-                    border-collapse: collapse !important;
-                    margin-top: 5px !important;
-                    table-layout: fixed !important; /* Strict table layout */
-                }
-                th, td {
-                    border: 1px solid black !important;
-                    padding: 4px !important; 
-                    font-size: 10.5pt !important;
-                    line-height: 1.1 !important;
-                    font-family: 'Times New Roman', Times, serif !important;
-                    word-wrap: break-word !important;
-                }
-                
-                /* DAY Column Specific */
-                th:first-child, td:first-child {
-                    width: 80px !important;
-                    font-weight: bold !important;
-                    text-align: center !important;
-                }
-
-                /* INPUTS AS TEXT */
-                input {
-                    border: none !important;
-                    background: transparent !important;
-                    width: auto !important;
-                    text-align: left !important;
-                    font-family: 'Times New Roman', Times, serif !important;
-                    font-size: 11pt !important;
-                    font-weight: bold !important;
-                }
-
-                .signature-wrapper {
-                    margin-top: 2rem !important;
-                    font-size: 11pt !important;
-                    page-break-inside: avoid !important;
-                    break-inside: avoid !important;
-                }
-            }
-        `
-    });
-
-    const isFaculty = currentUser?.role === 'faculty';
-    const canEdit = currentUser?.role === 'admin' || currentUser?.role === 'hod';
     const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
-    // Timings Helper
     const timings = [
         "09:40 AM\n10:40 AM",
         "10:40 AM\n11:30 AM",
@@ -159,239 +105,236 @@ const TimetablePrintView = ({ timetableData, metaData, rearrangements = [] }) =>
     const getCellContent = (dayShort, slotId) => {
         const dayMap = { 'MON': 'Monday', 'TUE': 'Tuesday', 'WED': 'Wednesday', 'THU': 'Thursday', 'FRI': 'Friday', 'SAT': 'Saturday' };
         const fullDay = dayMap[dayShort];
-
         if (!timetableData || !timetableData[fullDay]) return { text: '---', type: 'empty' };
-
         const entry = timetableData[fullDay][slotId];
         if (!entry) return { text: '---', type: 'empty' };
 
+        // Lookup Short Name if available
         let display = entry.subjectName || '---';
+        const shortName = metaData?.subjects?.find(s => s.name === display)?.shortName;
+        if (shortName) display = shortName;
 
-        // Show 2nd faculty if exists (Lab)
-        if (entry.type === 'Lab' && entry.facultyName2) {
-            // display += ` & ${entry.facultyName2}`; // Option: Add to subject line?
-            // Usually Fac names are in footer, but if user wants in cell:
+        // For Faculty View: Append Class Info (Year/Section -> Branch is now handled by backend returning it in className usually, or we can check)
+        if (showFacultyLayout && entry.className) {
+            display += ` (${entry.className})`;
         }
 
         return {
             text: display,
             type: entry.type,
             facultyName: entry.facultyName,
-            facultyName2: entry.facultyName2, // Pass it out
+            facultyName2: entry.facultyName2,
             room: entry.roomNumber
         };
     };
 
     const formatYearSem = (y, s) => {
         if (typeof y === 'string' && y.includes('Year')) return `${y} B.Tech ${s}`;
-        // eslint-disable-next-line eqeqeq
         const yOrd = y == 1 ? 'I' : y == 2 ? 'II' : y == 3 ? 'III' : 'IV';
-        // eslint-disable-next-line eqeqeq
-        const sOrd = s == 1 ? 'I' : s == 2 ? 'II' : 'I'; // Sem is usually I or II
-        // Logic check: Sem 1->I, 2->II, 3->I, 4->II...
+        const sOrd = s == 1 ? 'I' : s == 2 ? 'II' : 'I';
         const semIsOdd = s % 2 !== 0;
         const finalSem = semIsOdd ? 'I' : 'II';
-
         return `${yOrd} B.Tech ${finalSem} Semester`;
     };
 
     return (
-        <div className="p-4 w-full font-serif">
-            <button onClick={handlePrint} className="no-print mb-4 px-4 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition-colors">
-                Print / Save PDF (Corrected Format)
-            </button>
+        <div className="p-4 w-full font-serif flex flex-col items-center">
+            <style>{PRINT_STYLES}</style>
 
-            <div className={`w-full bg-white ${currentUser ? 'shadow-lg border border-gray-200 rounded-lg' : ''} overflow-x-auto print:overflow-visible`}>
-                <div style={{ minWidth: '1100px' }} ref={componentRef} className="print-root print-container bg-white text-black relative p-8 mx-auto font-serif print:w-full print:min-w-0">
+            <div className="flex gap-4 mb-4 no-print">
+                <button onClick={handleDownloadPDF} className="px-6 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 transition-colors shadow-md flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Download PDF
+                </button>
+                <button onClick={handlePrint} className="px-6 py-2 bg-gray-600 text-white rounded font-bold hover:bg-gray-700 transition-colors shadow-md flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                    Print (Browser)
+                </button>
+            </div>
 
-                    {/* Header */}
-                    <div className="text-center border-b-2 border-black pb-1 mb-1">
-                        <div className="flex flex-row items-center justify-center px-2 gap-4">
-                            {/* Logo */}
-                            <div className="h-20 w-20 flex items-center justify-center shrink-0">
-                                <img src="/logo.png" alt="Logo" className="h-full w-full object-contain" />
+            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 overflow-auto max-w-full">
+                <div className="preview-wrapper">
+                    <div id="print-area" ref={componentRef}>
+                        {/* Header Section */}
+                        <div className="flex flex-col gap-0 mb-1">
+                            <div className="flex flex-row items-center justify-center gap-4 border-b-2 border-black pb-1 mb-1">
+                                <div className="h-16 w-16 flex items-center justify-center shrink-0">
+                                    <img src="/logo.png" alt="Logo" className="h-full w-full object-contain" />
+                                </div>
+                                <div className="text-center">
+                                    <h1 className="header-college text-red-700 uppercase">
+                                        SREE RAMA ENGINEERING COLLEGE
+                                    </h1>
+                                    <h2 className="header-sub text-red-700">(AUTONOMOUS)</h2>
+                                    <p className="text-[10pt] font-bold text-black leading-tight">Approved by AICTE, New Delhi - Affiliated to JNTUA, Ananthapuramu | Accredited by NAAC with 'A' Grade</p>
+                                    <p className="text-[10pt] font-bold text-black leading-tight">Rami Reddy Nagar, Karakambadi Road, Tirupati - 517507</p>
+                                </div>
                             </div>
 
-                            <div className="text-center">
-                                <h1 className="header-college mb-1 text-red-700 print:text-red-700 font-black leading-tight" style={{ fontSize: '22pt', fontWeight: '900' }}>
-                                    SREE RAMA ENGINEERING COLLEGE
-                                </h1>
-                                <h2 className="header-sub text-red-700 print:text-red-700 mb-1 font-bold" style={{ fontSize: '14pt' }}>(AUTONOMOUS)</h2>
-                                <p className="text-[10pt] font-bold text-black leading-tight">Approved by AICTE, New Delhi - Affiliated to JNTUA, Ananthapuramu</p>
-                                <p className="text-[10pt] font-bold text-black leading-tight">Accredited by NAAC with 'A' Grade & NBA (ECE & CSE)</p>
-                                <p className="text-[10pt] font-bold text-black leading-tight">Rami Reddy Nagar, Karakambadi Road, Tirupati - 517507</p>
+                            <div className="text-center mb-1">
+                                <h3 className="text-black tracking-wide underline font-bold" style={{ fontSize: '13pt', margin: '0 0 2px 0' }}>Department of Artificial Intelligence & Data Science</h3>
+                                {!showFacultyLayout && (
+                                    <h4 className="header-sub mb-0 uppercase text-black" style={{ fontSize: '10pt' }}>
+                                        {metaData?.year ? formatYearSem(metaData.year, metaData.semester) : 'III Year B.Tech II Semester'}
+                                        <span className="ml-2">({regulation})</span>
+                                    </h4>
+                                )}
+                                <h5 className="header-sub mb-0 text-black" style={{ fontSize: '11pt', textDecoration: 'underline' }}>
+                                    TIME TABLE FOR THE ACADEMIC YEAR 2025-26
+                                </h5>
+
+                                <div className="flex justify-between items-center header-details px-12 pt-1 pb-1">
+                                    <div className="flex items-center gap-2">
+                                        {!showFacultyLayout && (
+                                            <>
+                                                <span>Room No:</span>
+                                                <span className="min-w-[50px] inline-block text-center num-font">{roomNumber || '232'}</span>
+                                            </>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span>W.E.F:</span>
+                                        <span className="min-w-[80px] inline-block text-center num-font">{wefDate || '04/01/2026'}</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="mt-1 border-t border-black pt-1">
-                            <h3 className="header-college text-black tracking-wider mb-1 underline font-bold" style={{ fontSize: '15pt' }}>Department of Artificial Intelligence & Data Science</h3>
+                        {/* Timetable Grid */}
+                        <table className="w-full border-collapse border border-black text-center table-fixed margin-0">
+                            <thead>
+                                <tr className="bg-gray-100">
+                                    <th className="border border-black" style={{ width: '8.5%' }}>DAY</th>
+                                    <th className="border border-black num-font whitespace-pre-line" style={{ width: '11.5%' }}>{timings[0]}</th>
+                                    <th className="border border-black num-font whitespace-pre-line" style={{ width: '11.5%' }}>{timings[1]}</th>
+                                    <th className="border border-black vertical-text p-0" style={{ width: '4%' }}><div style={{ writingMode: 'vertical-lr', margin: 'auto', fontSize: '8pt' }}>BRK</div></th>
+                                    <th className="border border-black num-font whitespace-pre-line" style={{ width: '11.5%' }}>{timings[2]}</th>
+                                    <th className="border border-black num-font whitespace-pre-line" style={{ width: '11.5%' }}>{timings[3]}</th>
+                                    <th className="border border-black vertical-text p-0" style={{ width: '4%' }}><div style={{ writingMode: 'vertical-lr', margin: 'auto', fontSize: '8pt' }}>LCH</div></th>
+                                    <th className="border border-black num-font whitespace-pre-line" style={{ width: '12.5%' }}>{timings[4]}</th>
+                                    <th className="border border-black num-font whitespace-pre-line" style={{ width: '12.5%' }}>{timings[5]}</th>
+                                    <th className="border border-black num-font whitespace-pre-line" style={{ width: '12%' }}>{timings[6]}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {days.map((day) => (
+                                    <tr key={day} style={{ height: '8mm' }}>
+                                        <td className="border border-black font-bold">{day}</td>
+                                        {['P1', 'P2'].map(slot => {
+                                            const cell = getCellContent(day, slot);
+                                            return <td key={slot} className="border border-black font-bold leading-tight">
+                                                <div className="cell-content">{cell.text}</div>
+                                            </td>
+                                        })}
+                                        {day === 'MON' && (
+                                            <td rowSpan={6} className="border border-black bg-gray-50 p-0 align-middle">
+                                                <div className="flex items-center justify-center font-bold" style={{ writingMode: 'vertical-lr', height: '100%', width: '100%', fontSize: '8pt' }}>BREAK</div>
+                                            </td>
+                                        )}
+                                        {['P3', 'P4'].map(slot => {
+                                            const cell = getCellContent(day, slot);
+                                            return <td key={slot} className="border border-black font-bold leading-tight">
+                                                <div className="cell-content">{cell.text}</div>
+                                            </td>
+                                        })}
+                                        {day === 'MON' && (
+                                            <td rowSpan={6} className="border border-black bg-gray-50 p-0 align-middle">
+                                                <div className="flex items-center justify-center font-bold" style={{ writingMode: 'vertical-lr', height: '100%', width: '100%', fontSize: '8pt' }}>LUNCH</div>
+                                            </td>
+                                        )}
+                                        {['P5', 'P6', 'P7'].map(slot => {
+                                            const cell = getCellContent(day, slot);
+                                            return <td key={slot} className="border border-black font-bold leading-tight">
+                                                <div className="cell-content">{cell.text}</div>
+                                            </td>
+                                        })}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
 
-                            {/* Class Details */}
-                            <h4 className="header-sub mb-1 uppercase font-bold" style={{ fontSize: '12pt' }}>
-                                {metaData?.year ? formatYearSem(metaData.year, metaData.semester) : 'III Year B.Tech II Semester'}
-                                <span className="ml-2">({regulation})</span>
-                            </h4>
-                            <h5 className="header-sub mb-1 font-bold">TIME TABLE FOR THE ACADEMIC YEAR 2025-26</h5>
-
-                            {/* Info Line: Room, WEF */}
-                            <div className="flex justify-between items-center header-sub px-16 mt-2 pb-2">
-                                {/* Room No */}
-                                <div className="flex items-center gap-2">
-                                    {!isFaculty && (
-                                        <>
-                                            <span className="font-bold">Room No:</span>
-                                            <span className="font-bold border-b border-black min-w-[50px] inline-block text-center">{roomNumber || '232'}</span>
-                                        </>
-                                    )}
-                                </div>
-
-                                {/* WEF */}
-                                <div className="flex items-center gap-2">
-                                    <span className="font-bold">W.E.F:</span>
-                                    <span className="font-bold border-b border-black min-w-[80px] inline-block text-center">{wefDate || '04/01/2026'}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Grid */}
-                        <div className="w-full mt-2">
-                            <table className="w-full border-collapse border border-black text-center table-fixed text-[10px]">
+                        {/* Subject List */}
+                        <div className="mt-2" style={{ pageBreakInside: 'avoid' }}>
+                            <table className="w-full border-collapse border border-black footer-text" style={{ fontSize: '7pt' }}>
                                 <thead>
-                                    <tr className="bg-gray-200 h-10">
-                                        <th className="border border-black w-10">DAY</th>
-                                        <th className="border border-black whitespace-pre-line">{timings[0]}</th>
-                                        <th className="border border-black whitespace-pre-line">{timings[1]}</th>
-                                        <th className="border border-black w-5 vertical-text text-[8px]">BRK</th>
-                                        <th className="border border-black whitespace-pre-line">{timings[2]}</th>
-                                        <th className="border border-black whitespace-pre-line">{timings[3]}</th>
-                                        <th className="border border-black w-5 vertical-text text-[8px]">LCH</th>
-                                        <th className="border border-black whitespace-pre-line">{timings[4]}</th>
-                                        <th className="border border-black whitespace-pre-line">{timings[5]}</th>
-                                        <th className="border border-black whitespace-pre-line">{timings[6]}</th>
+                                    <tr className="bg-gray-100 h-4">
+                                        <th className="border border-black text-center" style={{ width: '5%', height: '5mm', fontSize: '7.5pt', padding: '1mm' }}>S.No</th>
+                                        <th className="border border-black text-left" style={{ width: '45%', height: '5mm', fontSize: '7.5pt', padding: '1mm' }}>Subject Name</th>
+                                        <th className="border border-black text-center" style={{ width: '15%', height: '5mm', fontSize: '7.5pt', padding: '1mm' }}>Code</th>
+                                        <th className="border border-black text-left" style={{ width: '35%', height: '5mm', fontSize: '7.5pt', padding: '1mm' }}>
+                                            {showFacultyLayout ? 'Class / Section' : 'Name of the Faculty'}
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {days.map((day) => (
-                                        <tr key={day} style={{ height: '55px' }}> {/* Explicit Height for Print */}
-                                            <td className="border border-black font-bold">{day}</td>
+                                    {(() => {
+                                        let displaySubjects = [];
+                                        if (showFacultyLayout && timetableData) {
+                                            const uniqueMap = new Map();
+                                            Object.values(timetableData).forEach(daySlots => {
+                                                Object.values(daySlots).forEach(slot => {
+                                                    if (slot.subjectName) {
+                                                        const key = `${slot.subjectName}-${slot.className}`;
+                                                        if (!uniqueMap.has(key)) {
+                                                            uniqueMap.set(key, {
+                                                                name: slot.subjectName,
+                                                                code: slot.subjectCode || '-',
+                                                                facultyName: slot.className || '-'
+                                                            });
+                                                        }
+                                                    }
+                                                });
+                                            });
+                                            displaySubjects = Array.from(uniqueMap.values());
+                                        } else {
+                                            displaySubjects = metaData?.subjects || [];
+                                        }
 
-                                            {/* P1, P2 */}
-                                            {['P1', 'P2'].map(slot => {
-                                                const cell = getCellContent(day, slot);
-                                                return <td key={slot} className="border border-black p-1 leading-tight font-bold">
-                                                    {cell.text}
-                                                </td>
-                                            })}
-
-                                            {day === 'MON' && (
-                                                <td rowSpan={6} className="border border-black bg-gray-100 p-0 align-middle">
-                                                    <div className="flex items-center justify-center font-bold text-[8px]" style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)', height: '100%' }}>BREAK</div>
-                                                </td>
-                                            )}
-
-                                            {/* P3, P4 */}
-                                            {['P3', 'P4'].map(slot => {
-                                                const cell = getCellContent(day, slot);
-                                                return <td key={slot} className="border border-black p-1 leading-tight font-bold">
-                                                    {cell.text}
-                                                </td>
-                                            })}
-
-                                            {day === 'MON' && (
-                                                <td rowSpan={6} className="border border-black bg-gray-100 p-0 align-middle">
-                                                    <div className="flex items-center justify-center font-bold text-[8px]" style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)', height: '100%' }}>LUNCH</div>
-                                                </td>
-                                            )}
-
-                                            {/* P5, P6, P7 */}
-                                            {['P5', 'P6', 'P7'].map(slot => {
-                                                const cell = getCellContent(day, slot);
-                                                return <td key={slot} className="border border-black p-1 leading-tight font-bold">
-                                                    {cell.text}
-                                                </td>
-                                            })}
-                                        </tr>
-                                    ))}
+                                        return displaySubjects.length > 0 ? (
+                                            displaySubjects.map((sub, index) => (
+                                                <tr key={index} className="h-4">
+                                                    <td className="border border-black text-center num-font" style={{ height: '5mm', padding: '1mm' }}>{index + 1}</td>
+                                                    <td className="border border-black font-bold text-left" style={{ height: '5mm', padding: '1mm' }}>{sub.name}</td>
+                                                    <td className="border border-black text-center num-font" style={{ height: '5mm', padding: '1mm' }}>{sub.subjectCode || sub.code || '-'}</td>
+                                                    <td className="border border-black font-bold text-left" style={{ height: '5mm', padding: '1mm' }}>
+                                                        {sub.facultyName}
+                                                        {sub.facultyName2 ? ` & ${sub.facultyName2}` : ''}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr><td colSpan={4} className="border border-black p-0 text-center">No Data</td></tr>
+                                        );
+                                    })()}
                                 </tbody>
                             </table>
                         </div>
 
-                        {/* Footer List */}
-                        <div className="mt-4 text-[11pt]">
-                            <table className="w-full border-collapse border border-black text-[11pt]">
-                                <thead>
-                                    <tr className="bg-gray-100 h-8">
-                                        <th className="border border-black w-12 text-center p-1">S.No</th>
-                                        <th className="border border-black text-left pl-3 p-1">Subject Name</th>
-                                        <th className="border border-black w-32 text-center p-1">Code</th>
-                                        <th className="border border-black text-left pl-3 p-1">Name of the Faculty</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {metaData?.subjects?.length > 0 ? (
-                                        metaData.subjects.map((sub, index) => (
-                                            <tr key={index} className="h-8">
-                                                <td className="border border-black text-center p-1">{index + 1}</td>
-                                                <td className="border border-black pl-3 font-bold p-1">{sub.name}</td>
-                                                <td className="border border-black text-center p-1">{sub.subjectCode || sub.code || '-'}</td>
-                                                <td className="border border-black pl-3 font-bold p-1">
-                                                    {sub.facultyName}
-                                                    {sub.facultyName2 ? ` & ${sub.facultyName2}` : ''}
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr><td colSpan={4} className="border border-black p-1 text-center">No Data</td></tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Signatures & Footer Text */}
-                        <div className="signature-wrapper mt-auto break-inside-avoid">
-
-                            {/* Class In-charge (Moved Here) */}
-                            <div className="mb-4 pl-8 header-sub font-bold mt-6"> {/* Added mt-6 for spacing */}
-                                <span>Class In-charge: </span>
-                                <span className="underline decoration-1 underline-offset-4 inline-block min-w-[200px]">
-                                    {classIncharge && classIncharge.trim() !== '' ? classIncharge : '________________________'}
-                                </span>
-                            </div>
-
-                            <div className="flex justify-between items-end font-bold text-sm mt-8 px-8 mb-4 header-sub">
-                                <div className="text-center">
-                                    <div className="h-10"></div>
-                                    <p>CO-ORDINATOR</p>
+                        {/* Footer Signatures */}
+                        {!showFacultyLayout && (
+                            <div className="mt-4 font-bold" style={{ pageBreakInside: 'avoid', fontSize: '8pt' }}>
+                                <div className="mb-1 pl-4 text-left">
+                                    <span>Class In-charge: </span>
+                                    <span className="inline-block min-w-[200px] pl-2">{classIncharge || ''}</span>
                                 </div>
-                                <div className="text-center">
-                                    <div className="h-10"></div>
-                                    <p>HOD</p>
+                                <div className="flex justify-between items-end mt-6 px-8">
+                                    <div className="text-center w-36"><p className="pt-1">CO-ORDINATOR</p></div>
+                                    <div className="text-center w-36"><p className="pt-1">HOD</p></div>
+                                    <div className="text-center w-36"><p className="pt-1">Principal</p></div>
                                 </div>
-                                <div className="text-center">
-                                    <div className="h-10"></div>
-                                    <p>Principal</p>
+                                <div className="text-left mt-2 pl-4 text-[7pt]">
+                                    <p>Copy to:</p>
+                                    <ul className="list-disc pl-5 m-0 leading-tight">
+                                        <li>The Principal's Office</li>
+                                        <li>The Examination Cell</li>
+                                    </ul>
                                 </div>
                             </div>
-
-                            {/* Copy To Block */}
-                            <div className="text-left font-bold mt-4 mb-4 pl-8" style={{ fontSize: '11pt' }}>
-                                <p>Copy to</p>
-                                <ul className="list-none pl-0">
-                                    <li>The Principal's Office</li>
-                                    <li>The Examination Cell</li>
-                                </ul>
-                            </div>
-
-                            {/* Department Footer */}
-                            <div className="text-center font-bold pt-2 mb-1" style={{ fontSize: '8pt' }}>
-                                DEPT. OF ARTIFICAL INTELLIGENCE & DATA SCIENCE - SREE RAMA ENGINEERING COLLEGE
-                            </div>
-                        </div>
-
+                        )}
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

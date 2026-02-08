@@ -92,7 +92,7 @@ export default function FacultyDashboard() {
                 api.get('/leaves/my-leaves'),
                 api.get('/attendance/my-history')
             ]);
-            
+
             // 1. Fetch Independent Data in Parallel
             setFacultyProfile(profileRes.data);
             setLeaves(leavesRes.data || []);
@@ -296,7 +296,6 @@ export default function FacultyDashboard() {
         <div className="space-y-6 p-6">
             <h2 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
                 Faculty Dashboard
-                <span className="text-xs bg-green-100 text-green-800 px-3 py-1 rounded-full border border-green-200 shadow-sm">v3.3 (Manual Select)</span>
             </h2>
             {message && <div className={`p-3 rounded ${message.includes('Rearranged') ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}`}>{message}</div>}
 
@@ -332,9 +331,9 @@ export default function FacultyDashboard() {
                                     <div key={req.id} className="p-3 bg-green-50 border border-green-200 rounded flex justify-between items-center shadow-sm">
                                         <div>
                                             <span className="block font-bold text-green-900">{req.substituteName || req.substituteFacultyName}</span>
-                                            <span className="text-xs text-green-700">is covering {req.slotId} ({req.date.split('-').slice(1).join('/')})</span>
+                                            <span className="text-xs text-green-700">Accepted: Covering {req.slotId} ({req.date.split('-').slice(1).join('/')})</span>
                                         </div>
-                                        <span className="text-xl">🤝</span>
+                                        <span className="text-xs font-bold bg-green-200 text-green-800 px-2 py-1 rounded">Accepted</span>
                                     </div>
                                 ))}
                             </div>
@@ -347,7 +346,9 @@ export default function FacultyDashboard() {
                                 <ul className="space-y-2 max-h-40 overflow-y-auto">
                                     {myRequests.filter(r => r.status !== 'accepted').map(req => (
                                         <li key={req.id} className="text-xs p-2 bg-gray-50 rounded border flex justify-between items-center">
-                                            <span>{req.slotId} - {req.substituteName || req.substituteFacultyName}</span>
+                                            <span className="font-medium text-gray-700">
+                                                Request sent to <strong className="text-blue-600">{req.substituteName || req.substituteFacultyName}</strong> for {req.slotId}
+                                            </span>
                                             <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${req.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
                                                 }`}>{req.status}</span>
                                         </li>
@@ -527,10 +528,11 @@ export default function FacultyDashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Daily Attendance Card */}
-                <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500">
-                    <h3 className="text-xl font-semibold mb-4">
-                        Daily Attendance <span className="text-xs bg-red-600 text-white px-2 py-0.5 rounded-full ml-2 align-middle">v3.4 (Stable)</span>
+                <div className="bg-white p-6 rounded-lg shadow-md border-l-4 border-yellow-500">
+                    <h3 className="text-xl font-semibold text-yellow-700 mb-4 flex items-center">
+                        Daily Attendance
                     </h3>
+
                     {attendanceToday ? (
                         <div className="text-center py-4">
                             <span className="text-4xl">✅</span>

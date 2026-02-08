@@ -240,8 +240,7 @@ export default function Timetable() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
-                        {title} - {currentDept?.name}
-                        <span className="text-xs bg-green-100 text-green-800 px-3 py-1 rounded-full border border-green-200">v3.1 (Latest)</span>
+                        Timetable Generator
                     </h1>
 
                     <p className="text-gray-500 mt-1">
@@ -364,6 +363,7 @@ export default function Timetable() {
                             timetableData={timetable.schedule}
                             metaData={timetable.metaData}
                             rearrangements={rearrangements} // Pass overlay data
+                            isFacultyView={viewMode === 'Faculty'}
                         />
                     </div>
                 </div>

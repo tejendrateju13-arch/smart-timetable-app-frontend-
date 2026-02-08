@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 
 export default function AvailabilityEditor() {
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const slots = [1, 2, 3, 4, 5, 6, 7]; // Removed 8
 
     // Matrix: 5 days x 8 slots. true = available, false = unavailable
