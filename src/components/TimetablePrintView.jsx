@@ -102,6 +102,14 @@ const TimetablePrintView = ({ timetableData, metaData, rearrangements = [], isFa
         "03:40 PM\n04:30 PM"
     ];
 
+    // Helper to strip internal IDs from Class Names (e.g. "Year 3 - A - <ID>" -> "Year 3 - A")
+    const cleanClassName = (name) => {
+        if (!name) return '';
+        // Regex to find " - <Alphanumeric ID ~20 chars>" at the end
+        // Firebase IDs are 20 chars, but let's be flexible (15-30)
+        return name.replace(/\s+-\s+[a-zA-Z0-9]{15,30}$/, '').trim();
+    };
+
     const getCellContent = (dayShort, slotId) => {
         const dayMap = { 'MON': 'Monday', 'TUE': 'Tuesday', 'WED': 'Wednesday', 'THU': 'Thursday', 'FRI': 'Friday', 'SAT': 'Saturday' };
         const fullDay = dayMap[dayShort];
@@ -116,7 +124,7 @@ const TimetablePrintView = ({ timetableData, metaData, rearrangements = [], isFa
 
         // For Faculty View: Append Class Info (Year/Section -> Branch is now handled by backend returning it in className usually, or we can check)
         if (showFacultyLayout && entry.className) {
-            display += ` (${entry.className})`;
+            display += ` (${cleanClassName(entry.className)})`;
         }
 
         return {
@@ -297,7 +305,7 @@ const TimetablePrintView = ({ timetableData, metaData, rearrangements = [], isFa
                                                     <td className="border border-black font-bold text-left" style={{ height: '5mm', padding: '1mm' }}>{sub.name}</td>
                                                     <td className="border border-black text-center num-font" style={{ height: '5mm', padding: '1mm' }}>{sub.subjectCode || sub.code || '-'}</td>
                                                     <td className="border border-black font-bold text-left" style={{ height: '5mm', padding: '1mm' }}>
-                                                        {sub.facultyName}
+                                                        {showFacultyLayout ? cleanClassName(sub.facultyName) : sub.facultyName}
                                                         {sub.facultyName2 ? ` & ${sub.facultyName2}` : ''}
                                                     </td>
                                                 </tr>

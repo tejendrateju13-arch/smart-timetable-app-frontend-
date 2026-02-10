@@ -205,15 +205,18 @@ export default function FacultyDashboard() {
             };
             console.log("Sending Payload:", payload);
 
-            await api.post('/attendance/period-absence', payload);
+            const res = await api.post('/attendance/period-absence', payload);
 
-            setMessage(`Success! Request sent to substitute.`);
+            // NEW: Use returned substitute name if available
+            const subName = res.data.substitute || 'substitute';
+            setMessage(`Success! Request sent to ${subName}.`);
             setShowUrgentModal(false);
             fetchDashboardData();
             fetchRequests(); // Refresh requests list immediately
 
         } catch (e) {
-            alert(e.response?.data?.message || "Error assigning substitute");
+            console.error("Substitution Error:", e);
+            alert(e.response?.data?.message || e.message || "Error assigning substitute");
         }
     };
 
@@ -331,7 +334,7 @@ export default function FacultyDashboard() {
                                     <div key={req.id} className="p-3 bg-green-50 border border-green-200 rounded flex justify-between items-center shadow-sm">
                                         <div>
                                             <span className="block font-bold text-green-900">{req.substituteName || req.substituteFacultyName}</span>
-                                            <span className="text-xs text-green-700">Accepted: Covering {req.slotId} ({req.date.split('-').slice(1).join('/')})</span>
+                                            <span className="text-xs text-green-700"><strong>{req.substituteName || req.substituteFacultyName}</strong> accepted your request to cover {req.slotId}</span>
                                         </div>
                                         <span className="text-xs font-bold bg-green-200 text-green-800 px-2 py-1 rounded">Accepted</span>
                                     </div>
@@ -347,7 +350,7 @@ export default function FacultyDashboard() {
                                     {myRequests.filter(r => r.status !== 'accepted').map(req => (
                                         <li key={req.id} className="text-xs p-2 bg-gray-50 rounded border flex justify-between items-center">
                                             <span className="font-medium text-gray-700">
-                                                Request sent to <strong className="text-blue-600">{req.substituteName || req.substituteFacultyName}</strong> for {req.slotId}
+                                                You requested <strong className="text-blue-600">{req.substituteName || req.substituteFacultyName}</strong> to cover {req.slotId}
                                             </span>
                                             <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${req.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
                                                 }`}>{req.status}</span>
